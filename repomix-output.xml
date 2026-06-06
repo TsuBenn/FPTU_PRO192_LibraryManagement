@@ -1,0 +1,342 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+models/
+  Book.java
+utilities/
+  Input.java
+  UIRender.java
+  Validator.java
+Main.java
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="models/Book.java">
+package models;
+
+import java.util.UUID;
+
+public class Book {
+    UUID id;
+    String title;
+    String author;
+    int publishYear;
+    int quantity;
+};
+</file>
+
+<file path="utilities/Input.java">
+package utilities;
+
+import java.time.LocalDate;
+import java.util.Scanner;
+
+public class Input {
+
+    private static Scanner sc = new Scanner(System.in);
+
+    // With prompt and without prompt, mostly for quality of life.
+
+    public static String getString(String prompt) {
+        String input;
+        System.out.print(prompt);
+        input = sc.nextLine().trim();
+        return input;
+    } 
+
+    // Making a version that has a default errorMessage cause why not. Me lazy sometimes
+    public static int getInt(String prompt, String errorMessage) {
+        while (true) {
+            String input;
+            System.out.print(prompt);
+            input = sc.nextLine().trim();
+            if (Validator.isValidInt(input)) {
+                return Integer.parseInt(input);
+            }
+            UIRender.renderError(errorMessage);
+        }
+    } 
+
+    public static int getInt(String prompt) {
+        return getInt(prompt, "Please type a valid whole number");
+    } 
+
+    public static double getDouble(String prompt, String errorMessage) {
+        while (true) {
+            String input;
+            System.out.print(prompt);
+            input = sc.nextLine().trim();
+            if (Validator.isValidDouble(input)) {
+                return Double.parseDouble(input);
+            }
+            UIRender.renderError(errorMessage);
+        }
+    } 
+
+    public static double getDouble(String prompt) {
+        return getDouble(prompt, "Please type a valid real number");
+    } 
+
+
+    // Use LocalDate cause Java has it, don't need to create my own "Date".
+
+    public static LocalDate getDate(String prompt, String errorMessage) {
+        System.out.println(prompt);
+        while (true) {
+            int day = Input.getInt("Enter day (DD): ");
+            int month = Input.getInt("Enter month (MM): ");
+            int year = Input.getInt("Enter year (YYYY): ");
+
+            if (Validator.isValidDate(day, month, year)) {
+                return LocalDate.of(year, month, day);
+            }
+            UIRender.renderError(errorMessage);
+        }
+    } 
+
+    public static LocalDate getDate(String prompt) {
+        return getDate(prompt, "Inputted date does not exists, please try again");
+    } 
+
+}
+</file>
+
+<file path="utilities/UIRender.java">
+package utilities;
+
+import java.util.List;
+
+public class UIRender {
+
+    // Still don't whether to make UIRender static or not.
+
+    private static final String BORDER_LINE = "==================================================";
+    private static final String DIVIDER_LINE = "--------------------------------------------------";
+
+    public static void renderHeader(String title) {
+        System.out.println("\n" + BORDER_LINE);
+        System.out.println("                " + title.toUpperCase());
+        System.out.println(BORDER_LINE);
+    }
+
+    /*
+
+        Usage:
+
+        String[] mainMenuOptions = {
+            "Book Management", 
+            "Member Management", 
+            "Transactions", 
+            "Reports"
+        };
+
+        UIRender.renderMenu("Library Main Menu", mainMenuOptions);
+
+     */
+    public static void renderMenu(String menuTitle, String[] options) {
+        renderHeader(menuTitle);
+
+        for (int i = 0; i < options.length; i++) {
+            System.out.println("  [" + (i + 1) + "] " + options[i]);
+        }
+
+        System.out.println("  [0] Back / Exit");
+        System.out.println(DIVIDER_LINE);
+    }
+
+    /*
+
+        How to use this method:
+
+        String[] headers = {"ID", "Name", "Age", "Class"};
+
+        List<String[]> dataRows = new ArrayList<>();
+
+        dataRows.add(new String[] {"01", "Nguyen Van A", "18", "SE1967"});
+        dataRows.add(new String[] {"02", "Nguyen Van B", "18", "SE1969"});
+        dataRows.add(new String[] {"03", "Nguyen Van C", "18", "SE6767"});
+
+        UIRender.renderTable(headers, dataRows);
+
+     */
+    public static void renderTable(String[] headers, List<String[]> rows) {
+        if (headers == null || headers.length == 0) return;
+
+        int[] colWidths = new int[headers.length];
+
+        for (int i = 0; i < headers.length; i++) {
+            colWidths[i] = headers[i].length();
+        }
+
+        // Automatically expand the collumn's width if the content is too long
+        for (String[] row : rows) {
+            for (int i = 0; i < row.length; i++) {
+                if (i < colWidths.length && row[i] != null) {
+                    colWidths[i] = Math.max(colWidths[i], row[i].length());
+                }
+            }
+        }
+
+        StringBuilder dividerSB = new StringBuilder("+"); // StringBuilder for mutable String
+        for (int width : colWidths) {
+            dividerSB.append("-".repeat(width + 2)).append("+");
+        }
+        String divider = dividerSB.toString();
+
+        // Print header row
+        System.out.println(divider);
+        System.out.print("|");
+        for (int i = 0; i < headers.length; i++) {
+            System.out.printf(" %-" + colWidths[i] + "s |", headers[i]);
+        }
+        System.out.println("\n" + divider);
+
+        // Print content rows
+        for (String[] row : rows) {
+            System.out.print("|");
+            for (int i = 0; i < headers.length; i++) {
+                String cell = (i < row.length && row[i] != null) ? row[i] : "";
+                System.out.printf(" %-" + colWidths[i] + "s |", cell);
+            }
+            System.out.println();
+        }
+
+        System.out.println(divider);
+    }
+
+    public static void renderSuccess(String message) {
+        System.out.println("\n[SUCCESS] >>> " + message);
+    }
+
+    public static void renderError(String message) {
+        System.err.println("\n[ERROR] !!! " + message + " !!!");
+    }
+
+    public static void pauseEnter() {
+        Input.getString("\nPress Enter to return to the menu..."); 
+    }
+
+    // Won't work in NetBeans but work if you compile it and run it as a jar.
+    public static void clearScreen() {
+        System.out.print("\033[H\033[2J");
+        System.out.flush();
+    }
+
+}
+</file>
+
+<file path="utilities/Validator.java">
+package utilities;
+
+import java.time.YearMonth;
+
+public class Validator {
+
+    // Haven't learned Try, Catch yet so... Regex :D
+
+    public static boolean isValidInt(String str) {
+        return str != null && str.matches("^[+-]?[0-9]+$");
+    }
+
+    public static boolean isValidDouble(String str) {
+        return str != null && str.matches("^[+-]?[0-9]+(\\.[0-9]+)?$");
+    }
+
+    public static boolean isValidEmail(String str) {
+        return str != null && str.matches("^\\[0-9a-zA-Z._%+-]+@[0-9a-zA-Z.-]+\\.[A-Za-z]{2,6}$"); // Assuming an email has text@text.text
+    }
+
+
+    // LocalDate would throw exceptions so we use YearMonth instead
+    public static boolean isValidDate(int d, int m, int y) {
+        if (y < 1 || y > 9999 || m < 1 || m > 12) {
+            return false;
+        }
+
+        YearMonth yearMonthObj = YearMonth.of(y, m);
+        int daysInMonth = yearMonthObj.lengthOfMonth();
+
+        return d > 0 && d <= daysInMonth;
+    }
+
+    public static boolean isValidPhone(String str) {
+        return str != null && str.matches("[0-9]{10}"); // Assuming a valid phone number is 10 digits number
+    }
+
+    // We could validate Book or Member here but I think the BookManager and MemberManager or Book and Member itself should handle it.
+    
+}
+</file>
+
+<file path="Main.java">
+import java.time.LocalDate;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import utilities.Input;
+import utilities.UIRender;
+
+public class Main {
+
+    public static void main(String[] args) {
+
+        String[] headers = {"Book ID", "Title", "Author", "Qty"};
+
+        List<String[]> dataRows = new ArrayList<>();
+
+        // Sample populated data (In a real app, this loops over your internal books list)
+        dataRows.add(new String[]{"B001", "Dune", "Frank Herbert", "5"});
+        dataRows.add(new String[]{"B002", "The Hobbit", "J.R.R. Tolkien", "12"});
+        dataRows.add(new String[]{"B003", "Neuromancer", "William Gibson", "3"});
+
+        // Pass it straight to your tool
+        UIRender.renderTable(headers, dataRows);
+
+    }
+
+}
+</file>
+
+</files>

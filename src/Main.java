@@ -1,5 +1,11 @@
+import tests.UtilitiesTest;
+
 public class Main {
+
     public static void main(String[] args) {
-        System.out.println("Hello from PRO192!");
+
+        UtilitiesTest.testUtilities();
+
     }
+
 }
