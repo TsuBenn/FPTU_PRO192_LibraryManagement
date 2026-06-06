@@ -4,7 +4,7 @@ import java.util.List;
 
 public class UIRender {
 
-    // Still don't whether to make UIRender static or not.
+    // Still don't know whether to make UIRender static or not.
 
     private static final String BORDER_LINE = "==================================================";
     private static final String DIVIDER_LINE = "--------------------------------------------------";
