@@ -31,7 +31,7 @@ public class Input {
                 return Integer.parseInt(input);
             }
             UIRender.renderError(errorMessage);
-            clearMess(6);
+            clearMess(7);
         }
     } 
 
@@ -48,7 +48,7 @@ public class Input {
                 return Double.parseDouble(input);
             }
             UIRender.renderError(errorMessage);
-            clearMess(6);
+            clearMess(7);
         }
     } 
 
@@ -70,7 +70,7 @@ public class Input {
                 return LocalDate.of(year, month, day);
             }
             UIRender.renderError(errorMessage);
-            clearMess(8);
+            clearMess(9);
         }
     } 
 

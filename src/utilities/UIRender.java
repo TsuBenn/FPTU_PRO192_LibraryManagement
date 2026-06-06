@@ -109,7 +109,12 @@ public class UIRender {
     }
 
     public static void pauseEnter() {
-        Input.getString("\nPress Enter to return to the menu..."); 
+        Input.getString("\nPress Enter to continue..."); 
+    }
+
+    public static void pauseEnter(String prompt) {
+        Input.getString("\n" + prompt); 
+        System.out.println("");
     }
 
     // Both of these won't work in NetBeans but work if you run it in the terminal.
