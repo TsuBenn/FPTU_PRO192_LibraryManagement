@@ -3,147 +3,195 @@ package controllers;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
-import managers.BookManager;
-import managers.MemberManager;
-import managers.BorrowTransactionManager;
 import models.Book;
 import models.Member;
 import models.BorrowTransaction;
+import managers.BookManager;
+import managers.MemberManager;
+import managers.BorrowTransactionManager;
+import managers.ReportManager;
 import utilities.Input;
 import utilities.UIRender;
 import utilities.Validator;
-import utilities.IDManager;
 
 public class LibraryController {
     private BookManager bookManager;
     private MemberManager memberManager;
     private BorrowTransactionManager txManager;
+    private ReportManager reportManager;
 
     public LibraryController() {
         this.bookManager = new BookManager();
         this.memberManager = new MemberManager();
         this.txManager = new BorrowTransactionManager(bookManager, memberManager);
+        this.reportManager = new ReportManager(bookManager, memberManager, txManager);
         seedData();
     }
 
     public void start() {
         boolean running = true;
         String[] mainOptions = {
-            "Book Management System",
-            "Member Management System",
-            "Borrow Circulation Center",
-            "Return Processing Center"
+                "Book Management System",
+                "Member Management System",
+                "Borrow Circulation Center",
+                "Return Processing Center",
+                "Report Lost Book Asset",
+                "Analytics & Reports Dashboard",
+                "Exit Application Framework"
         };
 
         while (running) {
             UIRender.clearScreen();
-            UIRender.renderMenu("Library Core Main Framework", mainOptions);
+            UIRender.renderMenu("Library Administration Framework Core", mainOptions);
 
-            int choice = Input.getInt("Select an option: ");
+            int choice = Input.getInt("Select system component option: ");
             switch (choice) {
                 case 1: handleBookMenu(); break;
                 case 2: handleMemberMenu(); break;
                 case 3: handleBorrowWorkflow(); break;
                 case 4: handleReturnWorkflow(); break;
+                case 5: handleLostBookWorkflow(); break;
+                case 6: handleReportMenu(); break;
                 case 0: running = false; break;
-                default: 
-                UIRender.renderError("Invalid option choice selection profile!");
-                UIRender.pauseEnter();
+                default:
+                    UIRender.renderError("Invalid core framework option path selection!");
+                    UIRender.pauseEnter();
             }
         }
     }
 
-    // ==========================================
-    // 1. BOOK MANAGEMENT SYSTEM PIPELINE (CRUD)
-    // ==========================================
+    // =========================================================================
+    // 1. BOOK MANAGEMENT SUBSYSTEM
+    // =========================================================================
     private void handleBookMenu() {
         boolean inMenu = true;
         String[] bookOptions = { "Add Asset Book", "Remove Asset Book", "Update Book Details", "List Book Inventory" };
 
         while (inMenu) {
             UIRender.clearScreen();
-            UIRender.renderMenu("Book Management Sub-Registry", bookOptions);
-            int choice = Input.getInt("Select Action Index: ");
+            UIRender.renderMenu("Book Inventory Sub-Registry", bookOptions);
+            int choice = Input.getInt("Select action index: ");
 
-            if (choice == 1) { // ADD
+            if (choice == 1) { // CREATE
                 UIRender.clearScreen();
                 UIRender.renderHeader("Inventory Creation Workspace");
-                String id = IDManager.generateBookID();
-                System.out.println("Auto Generated Track Key ID: " + id);
 
-                String title = promptNonEmptyString("Enter Title: ");
-                String author = promptNonEmptyString("Enter Author: ");
-                String genre = promptNonEmptyString("Enter Genre: ");
-                int year = Input.getInt("Enter Publication Year (YYYY): ");
-                int qty = Input.getInt("Enter Total Inventory Quantity: ");
+                String title = Input.getString("Enter Title: ").trim();
+                String author = Input.getString("Enter Author: ").trim();
+                String genre = Input.getString("Enter Genre: ").trim();
 
-                if (bookManager.isDuplicateBook(title, author)) {
-                    UIRender.renderError("Operation Aborted: An identical title by this author already exists.");
-                    UIRender.pauseEnter();
-                    continue;
+                int year = 0;
+                while (true) {
+                    String rawYear = Input.getString("Enter Publication Year (YYYY): ");
+                    if (Validator.isValidInt(rawYear)) {
+                        year = Integer.parseInt(rawYear);
+                        if (year >= 0 && year <= LocalDate.now().getYear()) {
+                            break;
+                        }
+                    }
+                    UIRender.renderError("Year must be between 0 and " + LocalDate.now().getYear() + ".");
                 }
 
-                Book book = new Book(id, title, author, genre, year, qty);
-                if (bookManager.addBook(book)) {
-                    UIRender.renderSuccess("Book created and recorded in system registries!");
-                } else {
-                    UIRender.renderError("Database engine rejected structural storage.");
+                int qty = 0;
+                while (true) {
+                    String rawQty = Input.getString("Enter Total Stock Quantity: ");
+                    if (Validator.isValidInt(rawQty)) {
+                        qty = Integer.parseInt(rawQty);
+                        if (qty > 0) {
+                            break;
+                        }
+                    }
+                    UIRender.renderError("Quantity must be greater than 0.");
                 }
+
+                Book book = new Book(title, author, genre, year, qty);
+                bookManager.addBook(book);
+                UIRender.renderSuccess("Book registered safely. ID: " + book.getId());
                 UIRender.pauseEnter();
 
-            } else if (choice == 2) { // REMOVE
+            } else if (choice == 2) { // DELETION
                 UIRender.clearScreen();
                 UIRender.renderHeader("Inventory Purge Selection Module");
                 Book b = searchAndSelectBook();
                 if (b == null) continue;
 
-                if (txManager.isBookCurrentlyBorrowed(b.getId())) {
-                    UIRender.renderError("Purge Lock Triggered: This book asset has unresolved open loans active!");
+                if (b.getAvailableQuantity() != b.getTotalQuantity()) {
+                    UIRender.renderError("Purge Lock Triggered: Copies of this book are currently out on loan!");
                 } else {
-                    bookManager.removeBook(b.getId());
-                    UIRender.renderSuccess("Asset record removed cleanly from underlying maps.");
+                    bookManager.getAllBooks().remove(b);
+                    UIRender.renderSuccess("Asset record purged cleanly.");
                 }
                 UIRender.pauseEnter();
 
-            } else if (choice == 3) { // UPDATE
+            } else if (choice == 3) { // UPDATE (FIXED SPECIFIC LOGIC FOR YEAR AND MAX QUANTITY)
                 UIRender.clearScreen();
                 UIRender.renderHeader("Asset Modification Workspace");
                 Book b = searchAndSelectBook();
                 if (b == null) continue;
 
                 System.out.println("\n[INFO] Press ENTER without typing to skip field alteration & preserve values.\n");
-                String t = Input.getString("Update Title [" + b.getTitle() + "]: ");
-                String a = Input.getString("Update Author [" + b.getAuthor() + "]: ");
-                String g = Input.getString("Update Genre [" + b.getGenre() + "]: ");
+                String t = Input.getString("Update Title [" + b.getTitle() + "]: ").trim();
+                String a = Input.getString("Update Author [" + b.getAuthor() + "]: ").trim();
+                String g = Input.getString("Update Genre [" + b.getGenre() + "]: ").trim();
 
-                String yrRaw = Input.getString("Update Publication Year [" + b.getPublicationYear() + "]: ");
-                String qtyRaw = Input.getString("Update Quantity [" + b.getTotalQuantity() + "]: ");
-
-                // Conditional processing assignments: empty string skips mutation pass
                 if (!t.isEmpty()) b.setTitle(t);
                 if (!a.isEmpty()) b.setAuthor(a);
                 if (!g.isEmpty()) b.setGenre(g);
-                if (!yrRaw.isEmpty() && Validator.isValidInt(yrRaw)) b.setPublicationYear(Integer.parseInt(yrRaw));
-                if (!qtyRaw.isEmpty() && Validator.isValidInt(qtyRaw)) b.setTotalQuantity(Integer.parseInt(qtyRaw));
 
-                UIRender.renderSuccess("Asset state vector updated successfully!");
+                // Fixed logic for: year
+                while (true) {
+                    String yrRaw = Input.getString("Update Publication Year [" + b.getPublicationYear() + "]: ");
+                    if (yrRaw.isEmpty()) break;
+
+                    if (Validator.isValidInt(yrRaw)) {
+                        int parsedYear = Integer.parseInt(yrRaw);
+                        if (parsedYear >= 0 && parsedYear <= LocalDate.now().getYear()) {
+                            b.setPublicationYear(parsedYear);
+                            break;
+                        }
+                    }
+                    UIRender.renderError("Invalid Year: Must be between 0 and " + LocalDate.now().getYear() + ".");
+                }
+
+                // Fixed logic for: maxQuantity (Not allowed to touch realTimeQuantity directly)
+                while (true) {
+                    String qtyRaw = Input.getString("Update Max Stock Quantity [" + b.getTotalQuantity() + "]: ");
+                    if (qtyRaw.isEmpty()) break;
+
+                    if (Validator.isValidInt(qtyRaw)) {
+                        int newTotal = Integer.parseInt(qtyRaw);
+                        int checkedOut = b.getTotalQuantity() - b.getAvailableQuantity();
+
+                        if (newTotal < checkedOut) {
+                            UIRender.renderError("Validation Error: Max quantity cannot be less than current borrowed units (" + checkedOut + ").");
+                        } else if (newTotal <= 0) {
+                            UIRender.renderError("Validation Error: Total quantity must be greater than 0.");
+                        } else {
+                            b.setTotalQuantity(newTotal);
+                            b.setAvailableQuantity(newTotal - checkedOut); // Recalculate realTimeQuantity automatically
+                            UIRender.renderSuccess("Quantity properties updated successfully.");
+                            break;
+                        }
+                    } else {
+                        UIRender.renderError("Must be a valid integer number.");
+                    }
+                }
                 UIRender.pauseEnter();
 
-            } else if (choice == 4) { // LIST ALL
+            } else if (choice == 4) {
                 UIRender.clearScreen();
-                UIRender.renderHeader("Full Library Asset Manifest");
+                UIRender.renderHeader("Full Active Library Asset Manifest");
                 renderBookDatabaseTable(bookManager.getAllBooks());
                 UIRender.pauseEnter();
-
             } else if (choice == 0) {
                 inMenu = false;
             }
         }
     }
 
-    // ==========================================
-    // 2. MEMBER MANAGEMENT SYSTEM PIPELINE (CRUD)
-    // ==========================================
+    // =========================================================================
+    // 2. MEMBER MANAGEMENT SUBSYSTEM
+    // =========================================================================
     private void handleMemberMenu() {
         boolean inMenu = true;
         String[] memberOptions = { "Register New Member", "Revoke Member Account", "Modify Member Details", "List Directory Roster" };
@@ -151,61 +199,32 @@ public class LibraryController {
         while (inMenu) {
             UIRender.clearScreen();
             UIRender.renderMenu("Member Registry Sub-Framework", memberOptions);
-            int choice = Input.getInt("Select Action Index: ");
+            int choice = Input.getInt("Select action index: ");
 
-            if (choice == 1) { // ADD
+            if (choice == 1) { // CREATE
                 UIRender.clearScreen();
                 UIRender.renderHeader("Account Registration Terminal");
-                String id = IDManager.generateMemberID();
-                System.out.println("Auto Generated Roster Key ID: " + id);
 
-                String name = promptNonEmptyString("Enter Full Legal Name: ");
+                String name = Input.getString("Enter Full Legal Name: ").trim();
+                String phone = Input.getString("Enter Contact Phone: ").trim();
+                String email = Input.getString("Enter Email: ").trim();
 
-                String phone;
-                while (true) {
-                    phone = promptNonEmptyString("Enter Unique Contact Phone (10 digits): ");
-                    if (!Validator.isValidPhone(phone)) {
-                        UIRender.renderError("Regex Format Fault: Must be exactly 10 raw digits.");
-                        continue;
-                    }
-                    break;
-                }
-
-                String email;
-                while (true) {
-                    email = promptNonEmptyString("Enter Unique Email Domain Address: ");
-                    if (!Validator.isValidEmail(email)) {
-                        UIRender.renderError("Regex Format Fault: Invalid email criteria framework match.");
-                        continue;
-                    }
-                    break;
-                }
-
-                if (memberManager.isContactDuplicate(phone, email)) {
-                    UIRender.renderError("Registration Aborted: Uniqueness conflict on contact phone or email data variables.");
-                    UIRender.pauseEnter();
-                    continue;
-                }
-
-                Member m = new Member(id, name, phone, email);
-                if (memberManager.addMember(m)) {
-                    UIRender.renderSuccess("Member database profile committed!");
-                } else {
-                    UIRender.renderError("Database engine rejected user mapping registration.");
-                }
+                Member m = new Member(name, phone, email);
+                memberManager.addMember(m);
+                UIRender.renderSuccess("Member profile instantiated. Assigned ID: " + m.getId());
                 UIRender.pauseEnter();
 
-            } else if (choice == 2) { // REMOVE
+            } else if (choice == 2) { // DELETION
                 UIRender.clearScreen();
                 UIRender.renderHeader("Account Revocation Module");
                 Member m = searchAndSelectMember();
                 if (m == null) continue;
 
-                if (txManager.isMemberCurrentlyBorrowing(m.getId())) {
-                    UIRender.renderError("Revocation Lock Triggered: Account has outstanding books checked out!");
+                if (countActiveBorrows(m.getId()) > 0) {
+                    UIRender.renderError("Revocation Denied: Account currently holds outstanding borrowed assets!");
                 } else {
-                    memberManager.removeMember(m.getId());
-                    UIRender.renderSuccess("User account card revoked and purged.");
+                    memberManager.getAllMembers().remove(m);
+                    UIRender.renderSuccess("User account card revoked cleanly.");
                 }
                 UIRender.pauseEnter();
 
@@ -216,305 +235,318 @@ public class LibraryController {
                 if (m == null) continue;
 
                 System.out.println("\n[INFO] Press ENTER without typing to skip field alteration & preserve values.\n");
-                String n = Input.getString("Update Name [" + m.getName() + "]: ");
-                String p = Input.getString("Update Phone [" + m.getPhone() + "]: ");
-                String e = Input.getString("Update Email [" + m.getEmail() + "]: ");
+                String n = Input.getString("Update Name [" + m.getName() + "]: ").trim();
+                String p = Input.getString("Update Phone [" + m.getPhone() + "]: ").trim();
+                String e = Input.getString("Update Email [" + m.getEmail() + "]: ").trim();
 
                 if (!n.isEmpty()) m.setName(n);
-                if (!p.isEmpty() && Validator.isValidPhone(p)) m.setPhone(p);
-                if (!e.isEmpty() && Validator.isValidEmail(e)) m.setEmail(e);
+                if (!p.isEmpty()) m.setPhone(p);
+                if (!e.isEmpty()) m.setEmail(e);
 
-                UIRender.renderSuccess("Profile state values mutated successfully!");
+                UIRender.renderSuccess("Profile updates saved successfully.");
                 UIRender.pauseEnter();
 
-            } else if (choice == 4) { // LIST ALL
+            } else if (choice == 4) {
                 UIRender.clearScreen();
                 UIRender.renderHeader("Registered Library Membership Directory");
                 renderMemberDatabaseTable(memberManager.getAllMembers());
                 UIRender.pauseEnter();
-
             } else if (choice == 0) {
                 inMenu = false;
             }
         }
     }
 
-    // ==========================================
-    // 3. CIRCULATION LOAN SYSTEM WORKFLOW (BORROW)
-    // ==========================================
+    // =========================================================================
+    // 3. BORROW CIRCULATION MODULE
+    // =========================================================================
     private void handleBorrowWorkflow() {
-        boolean inMenu = true;
-        String[] borrowOptions = { "Create Borrow Transaction", "List All Circulation Ledgers" };
-
-        while (inMenu) {
-            UIRender.clearScreen();
-            UIRender.renderMenu("Borrow Circulation Sub-Framework", borrowOptions);
-            int choice = Input.getInt("Select Action Index: ");
-
-            if (choice == 1) {
-                executeBorrowTransaction();
-            } else if (choice == 2) {
-                UIRender.clearScreen();
-                UIRender.renderHeader("Master Circulation Transaction Ledger");
-
-                List<BorrowTransaction> allTx = txManager.getTransactions();
-                if (allTx.isEmpty()) {
-                    UIRender.renderError("No transaction history discovered in system ledger entries.");
-                    UIRender.pauseEnter();
-                    continue;
-                }
-
-                String[] headers = {"Tx ID", "Member Name", "Book Title", "Borrow Date", "Due Date", "Status / Fine"};
-                List<String[]> tableRows = new ArrayList<>();
-
-                for (BorrowTransaction tx : allTx) {
-                    // Resolve human-readable entities from raw tracking string keys
-                    Member m = memberManager.findMemberById(tx.getMemberId());
-                    Book b = bookManager.findBookById(tx.getBookId());
-
-                    String memberName = (m != null) ? m.getName() : "Unknown Member";
-                    String bookTitle = (b != null) ? b.getTitle() : "Unknown Asset";
-
-                    // Determine status vector display attributes
-                    String status;
-                    if (tx.getReturnDate() != null) {
-                        status = "RETURNED (Fine Paid: " + String.format("%,.0f", tx.getFinePaid()) + " VND)";
-                    } else {
-                        // Check if it's currently overdue relative to today's date
-                        if (LocalDate.now().isAfter(tx.getDueDate())) {
-                            status = "OVERDUE !!";
-                        } else {
-                            status = "ACTIVE / OUTSTANDING";
-                        }
-                    }
-
-                    tableRows.add(new String[] {
-                        tx.getTransactionId(),
-                        memberName,
-                        bookTitle,
-                        tx.getBorrowDate().toString(),
-                        tx.getDueDate().toString(),
-                        status
-                    });
-                }
-
-                UIRender.renderTable(headers, tableRows);
-                UIRender.pauseEnter();
-            } else if (choice == 0) {
-                inMenu = false;
-            }
-        }
-    }
-
-    // Helper extracting the core checkout logic to keep the sub-menu layout highly readable
-    private void executeBorrowTransaction() {
         UIRender.clearScreen();
-        UIRender.renderHeader("Circulation Terminal: Identify Loanee");
+        UIRender.renderHeader("Circulation Desk: Identify Member");
         Member member = searchAndSelectMember();
         if (member == null) return;
 
-        System.out.println("\n");
-        UIRender.renderHeader("Circulation Terminal: Identify Target Book Resource");
+        UIRender.renderHeader("Circulation Desk: Identify Target Book Resource");
         Book book = searchAndSelectBook();
         if (book == null) return;
 
-        // Validation safeguards
         if (book.getAvailableQuantity() <= 0) {
-            UIRender.renderError("Loan Rejected: Stock Exhausted. All copies of this asset are out.");
+            UIRender.renderError("Checkout Rejected: Out of Stock.");
             UIRender.pauseEnter();
             return;
         }
-        if (txManager.countActiveBorrows(member.getId()) >= member.getBorrowLimit()) {
-            UIRender.renderError("Loan Rejected: User profile allocation boundary threshold exceeded (Max 3).");
+        if (countActiveBorrows(member.getId()) >= member.getBorrowLimit()) {
+            UIRender.renderError("Checkout Rejected: Member has reached their open loan limit.");
             UIRender.pauseEnter();
             return;
         }
-        if (txManager.isBookAlreadyBorrowedByMember(member.getId(), book.getId())) {
-            UIRender.renderError("Loan Rejected: Multi-instance restriction. Member holds an open copy of this asset.");
+        if (isBookAlreadyBorrowedByMember(member.getId(), book.getId())) {
+            UIRender.renderError("Checkout Rejected: Double-instance restriction. Member already holds an active copy.");
             UIRender.pauseEnter();
             return;
         }
 
-        System.out.println("\n");
-        System.out.println("Processing System Chronology Configuration Initialization:");
-        String borrowPrompt = "Provide Check-out Anchor Timestamp [Leave empty for System Clock Today]:";
-        System.out.println(borrowPrompt);
+        LocalDate borrowDate = LocalDate.now();
+        BorrowTransaction tx = new BorrowTransaction(member.getId(), book.getId(), borrowDate);
 
-        String dayCheck = Input.getString("Enter day (DD) or hit enter: ");
-        LocalDate borrowDate;
+        System.out.println("\nDue Date Configuration Pipeline (Default is 14 days):");
+        System.out.println("  [1] Retain standard baseline (Due date: " + tx.getDueDate() + ")");
+        System.out.println("  [2] Configure specific custom return date threshold");
+        int option = Input.getInt("Select structural strategy index: ");
 
-        if (dayCheck.isEmpty()) {
-            borrowDate = LocalDate.now();
-            System.out.println("No parameters received. Resolved clock assignment: " + borrowDate);
-        } else {
-            if (!Validator.isValidInt(dayCheck)) {
-                UIRender.renderError("Invalid day variable template format input.");
-                UIRender.pauseEnter();
-                return;
+        if (option == 2) {
+            // Fixed logic for: dueDate validation
+            while (true) {
+                System.out.println("\n");
+                LocalDate customDueDate = Input.getDate("--- Input Custom Due Date ---");
+
+                if (customDueDate.isBefore(borrowDate)) {
+                    UIRender.renderError("Chronology Violation: Due date cannot be set behind the transaction checkout date.");
+                } else {
+                    tx.setDueDate(customDueDate);
+                    break;
+                }
             }
-            int d = Integer.parseInt(dayCheck);
-            int m = Input.getInt("Enter month (MM): ");
-            int y = Input.getInt("Enter year (YYYY): ");
-            if (!Validator.isValidDate(d, m, y)) {
-                UIRender.renderError("Calendar logic verification crash. Non-existent parameters profile.");
-                UIRender.pauseEnter();
-                return;
-            }
-            borrowDate = LocalDate.of(y, m, d);
         }
 
-        System.out.println("\nLoan Duration Criteria Processing Configuration Matrix:");
-        System.out.println("  [1] Assign specific concrete calendar deadline date");
-        System.out.println("  [2] Inject relative lifespan tracking days allowance metrics");
-        int dueChoice = Input.getInt("Select execution option: ");
-        LocalDate dueDate = null;
+        txManager.getTransactions().add(tx);
+        book.setAvailableQuantity(book.getAvailableQuantity() - 1);
 
-        if (dueChoice == 1) {
-            System.out.println("\n");
-            dueDate = Input.getDate("--- Input Targeted Return Date Cap Limits ---");
-        } else if (dueChoice == 2) {
-            int durationDays = Input.getInt("Enter allowed circulation days: ");
-            if (durationDays <= 0) {
-                UIRender.renderError("Boundary violation rules. Lifespan must match real progressive timeline vectors.");
-                UIRender.pauseEnter();
-                return;
-            }
-            dueDate = borrowDate.plusDays(durationDays);
-        } else {
-            UIRender.renderError("Invalid process strategy blueprint configuration fallback.");
-            UIRender.pauseEnter();
-            return;
-        }
-
-        if (dueDate.isBefore(borrowDate)) {
-            UIRender.renderError("Chronological Matrix Error: Deadline limit cannot sit prior to checkout timestamps.");
-            UIRender.pauseEnter();
-            return;
-        }
-
-        String txId = IDManager.generateTransactionID();
-        if (txManager.borrowBook(txId, member.getId(), book.getId(), borrowDate, dueDate)) {
-            UIRender.renderSuccess("Circulation sequence secured. Allocation Record ID: " + txId);
-        } else {
-            UIRender.renderError("Core operation transaction engine failure initialization parameters.");
-        }
+        UIRender.renderSuccess("Circulation record established. Reference key: " + tx.getTransactionId());
         UIRender.pauseEnter();
     }
 
-    // ==========================================
-    // 4. CIRCULATION RETURN PIPELINE WORKFLOW
-    // ==========================================
+    // =========================================================================
+    // 4. RETURN RECONCILIATION PROCESSING
+    // =========================================================================
     private void handleReturnWorkflow() {
         UIRender.clearScreen();
-        UIRender.renderHeader("Return System Terminal: Identify Returning Member");
+        UIRender.renderHeader("Return Processing: Identify Member");
         Member member = searchAndSelectMember();
         if (member == null) return;
 
-        System.out.println("\n");
-        UIRender.renderHeader("Outstanding Open Loans Log Checklist for: " + member.getName());
-        List<BorrowTransaction> activeLoans = txManager.getActiveTransactionsByMember(member.getId());
+        List<BorrowTransaction> activeLoans = new ArrayList<>();
+        for (BorrowTransaction tx : txManager.getTransactions()) {
+            if (tx.getMemberId().equalsIgnoreCase(member.getId()) && tx.getReturnDate() == null) {
+                activeLoans.add(tx);
+            }
+        }
 
         if (activeLoans.isEmpty()) {
-            UIRender.renderError("No outstanding active structural ledger accounts found matched to user.");
+            UIRender.renderError("No outstanding active open loan balances found.");
             UIRender.pauseEnter();
             return;
         }
 
-        String[] loanHeaders = {"Index", "Asset Key", "Resource Book Title", "Borrow Anchor Date", "Allocated Due Date"};
+        String[] headers = {"Index", "Asset Key", "Resource Title", "Borrow Date", "Allocated Due Date"};
         List<String[]> loanTable = new ArrayList<>();
         for (int i = 0; i < activeLoans.size(); i++) {
             BorrowTransaction tx = activeLoans.get(i);
             Book book = bookManager.findBookById(tx.getBookId());
-            String title = (book != null) ? book.getTitle() : "Asset Decoupled From Registry Store Maps";
-
-            loanTable.add(new String[] {
-                String.valueOf(i + 1),
-                tx.getBookId(),
-                title,
-                tx.getBorrowDate().toString(),
-                tx.getDueDate().toString()
-            });
+            String title = (book != null) ? book.getTitle() : "Detached Record";
+            loanTable.add(new String[] { String.valueOf(i + 1), tx.getBookId(), title, tx.getBorrowDate().toString(), tx.getDueDate().toString() });
         }
-        UIRender.renderTable(loanHeaders, loanTable);
+        UIRender.renderTable(headers, loanTable);
 
-        int lIdx = Input.getInt("Select ledger target sequence row index to reconcile: ") - 1;
-        if (lIdx < 0 || lIdx >= activeLoans.size()) return;
-        BorrowTransaction targetTx = activeLoans.get(lIdx);
+        int idx = Input.getInt("Select transaction index target to restore: ") - 1;
+        if (idx < 0 || idx >= activeLoans.size()) return;
+        BorrowTransaction targetTx = activeLoans.get(idx);
 
-        System.out.println("\n");
-        UIRender.renderHeader("Processing Return Asset Mapping Node Verification");
-        LocalDate borrowDate = targetTx.getBorrowDate();
-        LocalDate returnDate = null;
-
-        System.out.println("Reconciliation Date Verification Execution Strategies:");
-        System.out.println("  [1] Pull live active system clock timestamp configuration [TODAY]");
-        System.out.println("  [2] Declare explicit specific manual calendar calendar entry");
-        System.out.println("  [3] Input duration relative days tracking value from loan anchor point");
-        int retStrategy = Input.getInt("Strategy configuration code profile: ");
-
-        if (retStrategy == 1) {
-            returnDate = LocalDate.now();
-            System.out.println("Clock tracking verified automatically. Assignment: " + returnDate);
-        } else if (retStrategy == 2) {
-            System.out.println("\n");
-            returnDate = Input.getDate("--- Enter Concrete Actual Return Timestamp ---");
-        } else if (retStrategy == 3) {
-            System.out.println("\nAsset checked out tracking anchor date was: " + borrowDate);
-            int daysKept = Input.getInt("Enter total progressive elapsed tracking days retained: ");
-            if (daysKept < 0) {
-                UIRender.renderError("Timeline metrics vectors constraint boundary parameters fault.");
-                UIRender.pauseEnter();
-                return;
-            }
-            returnDate = borrowDate.plusDays(daysKept);
-        } else {
-            UIRender.renderError("Invalid configuration profile processing matrix selected path.");
+        if (targetTx.getReturnDate() != null) {
+            UIRender.renderError("Mutation Rejection: This completed transaction record is locked.");
             UIRender.pauseEnter();
             return;
         }
 
-        if (returnDate.isBefore(borrowDate)) {
-            UIRender.renderError("Chronological Paradox Error: Return execution cannot postdate historical emergence moments.");
-            UIRender.pauseEnter();
-            return;
+        LocalDate returnDate = LocalDate.now();
+        targetTx.setReturnDate(returnDate);
+
+        Book book = bookManager.findBookById(targetTx.getBookId());
+        if (book != null) {
+            book.setAvailableQuantity(book.getAvailableQuantity() + 1);
         }
 
-        double fine = txManager.returnBook(member.getId(), targetTx.getBookId(), returnDate);
-        if (fine > 0) {
-            UIRender.renderSuccess("Asset reclaimed successfully. Late status pipeline execution triggered!");
-            System.out.printf(">>> DISCOVERED PENALTY ACCOUNT BALANCE OWED: %,.0f VND\n", fine);
+        long daysPastDue = java.time.temporal.ChronoUnit.DAYS.between(targetTx.getDueDate(), returnDate);
+        if (daysPastDue > 0) {
+            double fine = daysPastDue * 5000.0;
+            targetTx.setFinePaid(fine);
+            System.out.printf("\n>>> LATE PENALTY FEES INCURRED: %,.0f VND\n", fine);
         } else {
-            UIRender.renderSuccess("Asset tracking vector restored on-schedule. Zero account fee liability metrics.");
+            UIRender.renderSuccess("Asset returned on schedule. Total liability: 0 VND.");
         }
         UIRender.pauseEnter();
     }
 
-    // ==========================================
-    // SELECTION LAYER HELPER UTILITIES (TUI REFACTOR)
-    // ==========================================
+    // =========================================================================
+    // 5. EMERGENCY PIPELINE: LOST BOOK DECLARATION
+    // =========================================================================
+    private void handleLostBookWorkflow() {
+        UIRender.clearScreen();
+        UIRender.renderHeader("Lost Asset Emergency Declaration Terminal");
+        Member member = searchAndSelectMember();
+        if (member == null) return;
+
+        List<BorrowTransaction> activeLoans = new ArrayList<>();
+        for (BorrowTransaction tx : txManager.getTransactions()) {
+            if (tx.getMemberId().equalsIgnoreCase(member.getId()) && tx.getReturnDate() == null) {
+                activeLoans.add(tx);
+            }
+        }
+
+        if (activeLoans.isEmpty()) {
+            UIRender.renderError("This member profile possesses zero outstanding active accounts.");
+            UIRender.pauseEnter();
+            return;
+        }
+
+        String[] headers = {"Index", "Asset Key", "Resource Title", "Expected Due Date"};
+        List<String[]> loanTable = new ArrayList<>();
+        for (int i = 0; i < activeLoans.size(); i++) {
+            BorrowTransaction tx = activeLoans.get(i);
+            Book book = bookManager.findBookById(tx.getBookId());
+            String title = (book != null) ? book.getTitle() : "Detached Record";
+            loanTable.add(new String[] { String.valueOf(i + 1), tx.getBookId(), title, tx.getDueDate().toString() });
+        }
+        UIRender.renderTable(headers, loanTable);
+
+        int idx = Input.getInt("Select row index matching the lost library book: ") - 1;
+        if (idx < 0 || idx >= activeLoans.size()) return;
+        BorrowTransaction targetTx = activeLoans.get(idx);
+
+        if (targetTx.getReturnDate() != null) {
+            UIRender.renderError("Mutation Rejection: This completed transaction history is locked.");
+            UIRender.pauseEnter();
+            return;
+        }
+
+        Book book = bookManager.findBookById(targetTx.getBookId());
+        if (book == null) {
+            UIRender.renderError("System Fault: Targeted inventory source record not found.");
+            UIRender.pauseEnter();
+            return;
+        }
+
+        double assetValue = -1.0;
+        while (assetValue < 0) {
+            String rawVal = Input.getString("Enter standard book assessment replacement value (VND): ");
+            boolean numeric = true;
+            for (char c : rawVal.toCharArray()) {
+                if (!Character.isDigit(c) && c != '.') numeric = false;
+            }
+            if (numeric && !rawVal.isEmpty()) {
+                assetValue = Double.parseDouble(rawVal);
+                if (assetValue >= 0) break;
+            }
+            UIRender.renderError("Replacement cost cannot evaluate as a negative number.");
+        }
+
+        LocalDate today = LocalDate.now();
+        targetTx.setReturnDate(today);
+
+        long daysPastDue = java.time.temporal.ChronoUnit.DAYS.between(targetTx.getDueDate(), today);
+        double latePenalty = (daysPastDue > 0) ? (daysPastDue * 5000.0) : 0.0;
+        double replacementCost = assetValue * 1.00;
+        double totalCompoundFine = replacementCost + latePenalty;
+        targetTx.setFinePaid(totalCompoundFine);
+
+        book.setTotalQuantity(book.getTotalQuantity() - 1);
+
+        UIRender.clearScreen();
+        UIRender.renderHeader("Emergency Incident Billing Summary Receipt");
+        System.out.println("Status Event Case: Asset Permanently Lost");
+        System.out.printf("1. Base Book Replacement Charge (100%% Value): %,.0f VND\n", replacementCost);
+        System.out.printf("2. Accumulated Late Processing Fine:          %,.0f VND\n", latePenalty);
+        System.out.println("---------------------------------------------------------------------");
+        System.out.printf("TOTAL INCIDENT PENALTY SETTLE LIABILITY:     %,.0f VND\n", totalCompoundFine);
+        System.out.println("\n[INFO] Inventory metrics updated. Total copies scaled downward.");
+        UIRender.pauseEnter();
+    }
+
+    // =========================================================================
+    // 6. ANALYTICS Dashboard
+    // =========================================================================
+    private void handleReportMenu() {
+        boolean inMenu = true;
+        String[] reportOptions = {
+                "View Specific Member Borrowing History",
+                "View All Transactions (Repayments First)",
+                "View Top Active Members List",
+                "View Active Overdue Books Report",
+                "View Most Popular Books Analytics"
+        };
+
+        while (inMenu) {
+            UIRender.clearScreen();
+            UIRender.renderMenu("Library Performance & Analytics Reports Dashboard", reportOptions);
+            int choice = Input.getInt("Select Report Target Index: ");
+
+            switch (choice) {
+                case 1:
+                    reportManager.viewMemberBorrowingHistory(searchAndSelectMember());
+                    UIRender.pauseEnter();
+                    break;
+                case 2:
+                    reportManager.viewAllTransactionsPrioritizingReturns();
+                    UIRender.pauseEnter();
+                    break;
+                case 3:
+                    int memLimit = Input.getInt("Enter max member threshold count (0 for default 5): ");
+                    reportManager.viewTopBorrowingMembers(memLimit);
+                    UIRender.pauseEnter();
+                    break;
+                case 4:
+                    reportManager.viewOverdueBooks();
+                    UIRender.pauseEnter();
+                    break;
+                case 5:
+                    int bookLimit = Input.getInt("Enter max popular books threshold count (0 for default 5): ");
+                    reportManager.viewMostPopularBooks(bookLimit);
+                    UIRender.pauseEnter();
+                    break;
+                case 0:
+                    inMenu = false;
+                    break;
+                default:
+                    UIRender.renderError("Invalid analytics report choice.");
+                    UIRender.pauseEnter();
+            }
+        }
+    }
+
+    // =========================================================================
+    // PERSISTENT UTILITY PATTERNS
+    // =========================================================================
     private Book searchAndSelectBook() {
-        String q = Input.getString("Enter Book Title, ID, or Author Query: ");
-        List<Book> matches = bookManager.searchBooks(q);
+        String query = Input.getString("Enter Book Search Filter Criteria (Title/ID/Author Query): ");
+        List<Book> matches = new ArrayList<>();
+        for (Book b : bookManager.getAllBooks()) {
+            if (b.getId().toLowerCase().contains(query.toLowerCase()) ||
+                    b.getTitle().toLowerCase().contains(query.toLowerCase()) ||
+                    b.getAuthor().toLowerCase().contains(query.toLowerCase())) {
+                matches.add(b);
+            }
+        }
+
         if (matches.isEmpty()) {
-            UIRender.renderError("No catalog match records discovered filtering with argument criteria.");
+            UIRender.renderError("No matching records found.");
             UIRender.pauseEnter();
             return null;
         }
 
-        String[] headers = {"Index", "ID Code", "Title Line", "Author Reference", "Stock Status"};
+        String[] headers = {"Index", "ID Code", "Title Line", "Author String", "Stock Status"};
         List<String[]> rows = new ArrayList<>();
         for (int i = 0; i < matches.size(); i++) {
             Book b = matches.get(i);
             rows.add(new String[] {
-                String.valueOf(i + 1), b.getId(), b.getTitle(), b.getAuthor(),
-                b.getAvailableQuantity() + "/" + b.getTotalQuantity() + " Units"
+                    String.valueOf(i + 1), b.getId(), b.getTitle(), b.getAuthor(),
+                    b.getAvailableQuantity() + "/" + b.getTotalQuantity() + " Units"
             });
         }
         UIRender.renderTable(headers, rows);
 
-        int idx = Input.getInt("Select book collection index row target line: ") - 1;
+        int idx = Input.getInt("Select target index line row match item: ") - 1;
         if (idx < 0 || idx >= matches.size()) {
-            UIRender.renderError("Index execution context boundary violation.");
+            UIRender.renderError("Index exception context boundary failure.");
             UIRender.pauseEnter();
             return null;
         }
@@ -522,25 +554,40 @@ public class LibraryController {
     }
 
     private Member searchAndSelectMember() {
-        String q = Input.getString("Enter Member Identity Search Query (Name/ID): ");
-        List<Member> matches = memberManager.searchMembers(q);
+        String query = Input.getString("Enter Member Identity Search Query Parameter (Name/ID): ");
+        List<Member> matches = new ArrayList<>();
+        for (Member m : memberManager.getAllMembers()) {
+            if (m.getId().toLowerCase().contains(query.toLowerCase()) ||
+                    m.getName().toLowerCase().contains(query.toLowerCase())) {
+                matches.add(m);
+            }
+        }
+
         if (matches.isEmpty()) {
-            UIRender.renderError("Zero direct roster matches verified targeting current parameter conditions.");
+            UIRender.renderError("Zero direct roster entries matched.");
             UIRender.pauseEnter();
             return null;
         }
 
-        String[] headers = {"Index", "User ID", "Legal Member Label Name", "Configured Phone Tracker"};
+        // Changed Header to include Allocation Limits
+        String[] headers = {"Index", "User ID Link", "Legal Profile Name", "Active Loans / Limit"};
         List<String[]> rows = new ArrayList<>();
         for (int i = 0; i < matches.size(); i++) {
             Member m = matches.get(i);
-            rows.add(new String[] { String.valueOf(i + 1), m.getId(), m.getName(), m.getPhone() });
+            int activeLoans = countActiveBorrows(m.getId());
+
+            rows.add(new String[] {
+                    String.valueOf(i + 1),
+                    m.getId(),
+                    m.getName(),
+                    activeLoans + " / " + m.getBorrowLimit() + " Books" // Displays e.g., "2 / 5 Books"
+            });
         }
         UIRender.renderTable(headers, rows);
 
-        int idx = Input.getInt("Select member identity row tracking layout index: ") - 1;
+        int idx = Input.getInt("Select member match target sequence index: ") - 1;
         if (idx < 0 || idx >= matches.size()) {
-            UIRender.renderError("Index calculation context parameters violation array space boundaries.");
+            UIRender.renderError("Index execution context parameters violation.");
             UIRender.pauseEnter();
             return null;
         }
@@ -552,36 +599,50 @@ public class LibraryController {
         List<String[]> rowMappings = new ArrayList<>();
         for (Book b : dataList) {
             rowMappings.add(new String[] {
-                b.getId(), b.getTitle(), b.getAuthor(), b.getGenre(),
-                String.valueOf(b.getPublicationYear()), String.valueOf(b.getAvailableQuantity()), String.valueOf(b.getTotalQuantity())
+                    b.getId(), b.getTitle(), b.getAuthor(), b.getGenre(),
+                    String.valueOf(b.getPublicationYear()), String.valueOf(b.getAvailableQuantity()), String.valueOf(b.getTotalQuantity())
             });
         }
         UIRender.renderTable(headers, rowMappings);
     }
 
     private void renderMemberDatabaseTable(List<Member> dataList) {
-        String[] headers = {"User Key", "Legal Identity Name", "Verified Phone Contact Link", "System Domain Email"};
+        // Appended limits tracking to the display manifest
+        String[] headers = {"User Key", "Legal Identity Name", "Verified Phone", "System Email", "Quota Burden"};
         List<String[]> rowMappings = new ArrayList<>();
         for (Member m : dataList) {
-            rowMappings.add(new String[] { m.getId(), m.getName(), m.getPhone(), m.getEmail() });
+            int activeLoans = countActiveBorrows(m.getId());
+            int remainingLimit = m.getBorrowLimit() - activeLoans;
+
+            rowMappings.add(new String[] {
+                    m.getId(),
+                    m.getName(),
+                    m.getPhone(),
+                    m.getEmail(),
+                    activeLoans + " Out (" + remainingLimit + " Left)" // Displays e.g., "1 Out (4 Left)"
+            });
         }
         UIRender.renderTable(headers, rowMappings);
     }
 
-    private String promptNonEmptyString(String outputPromptMessage) {
-        while (true) {
-            String readBuffer = Input.getString(outputPromptMessage);
-            if (readBuffer.isEmpty()) {
-                UIRender.renderError("Constraint Violation Exception: Entry field variables cannot remain empty.");
-                continue;
-            }
-            return readBuffer;
+    private int countActiveBorrows(String memberId) {
+        int count = 0;
+        for (BorrowTransaction tx : txManager.getTransactions()) {
+            if (tx.getMemberId().equalsIgnoreCase(memberId) && tx.getReturnDate() == null) count++;
         }
+        return count;
+    }
+
+    private boolean isBookAlreadyBorrowedByMember(String memberId, String bookId) {
+        for (BorrowTransaction tx : txManager.getTransactions()) {
+            if (tx.getMemberId().equalsIgnoreCase(memberId) && tx.getBookId().equalsIgnoreCase(bookId) && tx.getReturnDate() == null) return true;
+        }
+        return false;
     }
 
     private void seedData() {
-        bookManager.addBook(new Book(IDManager.generateBookID(), "The Great Gatsby", "F. Scott Fitzgerald", "Classic", 1925, 5));
-        bookManager.addBook(new Book(IDManager.generateBookID(), "1984", "George Orwell", "Dystopian", 1949, 3));
-        memberManager.addMember(new Member(IDManager.generateMemberID(), "Benn", "0123456789", "benn@uni.edu.vn"));
+        bookManager.addBook(new Book("The Great Gatsby", "F. Scott Fitzgerald", "Classic", 1925, 5));
+        bookManager.addBook(new Book("1984", "George Orwell", "Dystopian", 1949, 3));
+        memberManager.addMember(new Member("Benn", "0123456789", "benn@uni.edu.vn"));
     }
 }

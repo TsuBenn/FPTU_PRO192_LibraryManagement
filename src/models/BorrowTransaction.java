@@ -1,10 +1,12 @@
 package models;
 
+import utilities.IDManager;
+
 import java.time.LocalDate;
 
 public class BorrowTransaction {
 
-    private String transactionId;
+    private final String transactionId;
     private String memberId;
     private String bookId;
     private LocalDate borrowDate;
@@ -12,8 +14,8 @@ public class BorrowTransaction {
     private LocalDate returnDate;
     private double finePaid;
 
-    public BorrowTransaction(String transactionId, String memberId, String bookId, LocalDate borrowDate) {
-        this.transactionId = transactionId;
+    public BorrowTransaction(String memberId, String bookId, LocalDate borrowDate) {
+        transactionId = IDManager.transactionIDGenerator.newID();
         this.memberId = memberId;
         this.bookId = bookId;
         this.borrowDate = borrowDate;
@@ -32,5 +34,10 @@ public class BorrowTransaction {
     public void setReturnDate(LocalDate returnDate) { this.returnDate = returnDate; }
     public double getFinePaid() { return finePaid; }
     public void setFinePaid(double finePaid) { this.finePaid = finePaid; }
+    public void setDueDate(LocalDate dueDate) {
+        if (dueDate.isBefore(borrowDate))
+            return;
+        this.dueDate = dueDate;
+    }
 
 }

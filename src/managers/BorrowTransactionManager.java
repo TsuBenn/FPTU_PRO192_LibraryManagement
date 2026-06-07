@@ -13,10 +13,19 @@ public class BorrowTransactionManager {
     private BookManager bookManager;
     private MemberManager memberManager;
 
+    private static final double BASE_FINE_MONEY_PER_DAY = 5000;
+
     public BorrowTransactionManager(BookManager bookManager, MemberManager memberManager) {
         this.transactions = new ArrayList<>();
         this.bookManager = bookManager;
         this.memberManager = memberManager;
+    }
+
+    public double calculateCurrentFine(BorrowTransaction bx) {
+        if (bx == null || bx.getReturnDate() == null)
+            return 0.0;
+        int overdueDay = bx.getReturnDate().compareTo(bx.getDueDate());
+        return overdueDay * BASE_FINE_MONEY_PER_DAY;
     }
 
     public List<BorrowTransaction> getActiveTransactionsByMember(String memberId) {
@@ -44,7 +53,7 @@ public class BorrowTransactionManager {
         return getActiveTransaction(memberId, bookId) != null;
     }
 
-    public boolean borrowBook(String txId, String memberId, String bookId, LocalDate borrowDate, LocalDate customDueDate) {
+    public boolean borrowBook(String memberId, String bookId, LocalDate borrowDate, LocalDate customDueDate) {
         Member member = memberManager.findMemberById(memberId);
         if (member == null) return false;
 
@@ -56,7 +65,7 @@ public class BorrowTransactionManager {
         if (isBookAlreadyBorrowedByMember(memberId, bookId)) return false;
 
         // Custom assignment constructor workflow path override
-        BorrowTransaction tx = new BorrowTransaction(txId, memberId, bookId, borrowDate);
+        BorrowTransaction tx = new BorrowTransaction(memberId, bookId, borrowDate);
         // Injecting the custom calculation directly into your transaction timeline
         try {
             java.lang.reflect.Field field = BorrowTransaction.class.getDeclaredField("dueDate");

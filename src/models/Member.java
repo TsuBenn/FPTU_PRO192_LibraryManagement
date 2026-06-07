@@ -1,14 +1,17 @@
 package models;
 
+import sun.plugin2.message.RemoteCAContextIdMessage;
+import utilities.IDManager;
+
 public class Member {
 
-    private String id;
+    private final String id;
     private String name;
     private String phone;
     private String email;
 
-    public Member(String id, String name, String phone, String email) {
-        this.id = id;
+    public Member(String name, String phone, String email) {
+        id = IDManager.memberIDGenerator.newID();
         this.name = name;
         this.phone = phone;
         this.email = email;

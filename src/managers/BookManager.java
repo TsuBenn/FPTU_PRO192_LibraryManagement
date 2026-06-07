@@ -1,8 +1,9 @@
 package managers;
 
+import models.Book;
+
 import java.util.ArrayList;
 import java.util.List;
-import models.Book;
 
 public class BookManager {
     private List<Book> books;
@@ -30,11 +31,14 @@ public class BookManager {
 
     public boolean removeBook(String id) {
         Book b = findBookById(id);
-        if (b != null) {
-            books.remove(b);
-            return true;
-        }
-        return false;
+        if (b == null)
+            return false;
+
+        if (b.getTotalQuantity() != b.getAvailableQuantity())
+            return false;
+
+        books.remove(b);
+        return true;
     }
 
     public Book findBookById(String id) {
@@ -46,17 +50,22 @@ public class BookManager {
 
     public List<Book> searchBooks(String query) {
         List<Book> matches = new ArrayList<>();
+        if (query == null)
+            return matches;
+
         String lowerQuery = query.toLowerCase().trim();
         for (Book b : books) {
             if (b.getId().toLowerCase().contains(lowerQuery) ||
-                b.getTitle().toLowerCase().contains(lowerQuery) ||
-                b.getAuthor().toLowerCase().contains(lowerQuery) ||
-                b.getGenre().toLowerCase().contains(lowerQuery)) {
+                    b.getTitle().toLowerCase().contains(lowerQuery) ||
+                    b.getAuthor().toLowerCase().contains(lowerQuery) ||
+                    b.getGenre().toLowerCase().contains(lowerQuery)) {
                 matches.add(b);
             }
         }
         return matches;
     }
 
-    public List<Book> getAllBooks() { return books; }
+    public List<Book> getAllBooks() {
+        return books;
+    }
 }

@@ -1,33 +1,28 @@
 package utilities;
 
 public class IDManager {
+    private final String PREFIX;
+    private final int BASE_GENERATOR_SIZE;
+    private int iterator;
 
-    private static int bookCounter = 1;
-    private static int memberCounter = 1;
-    private static int transactionCounter = 1;
+    public static final IDManager memberIDGenerator = new IDManager("MEM");
+    public static final IDManager bookIDGenerator = new IDManager("BOK");
+    public static final IDManager transactionIDGenerator = new IDManager("TSC", 5, 0);
 
-    public static String generateBookID() {
-        return String.format("B%03d", bookCounter++); // e.g., B001, B002
+    public IDManager(String prefix, int baseGeneratorSize, int seed) {
+        if (prefix == null)
+            PREFIX = "NUL";
+        else
+            this.PREFIX = prefix.toUpperCase();
+        this.BASE_GENERATOR_SIZE = baseGeneratorSize;
+        this.iterator = seed;
     }
 
-    public static String generateMemberID() {
-        return String.format("M%03d", memberCounter++); // e.g., M001, M002
+    public IDManager(String prefix) {
+        this(prefix, 4, 0);
     }
 
-    public static String generateTransactionID() {
-        return String.format("T%03d", transactionCounter++); // e.g., T001, T002
-    }
-
-    // For Milestone 4: Call these when loading files so your counters don't reset!
-    public static void updateBookCounter(int lastIdNum) {
-        if (lastIdNum >= bookCounter) {
-            bookCounter = lastIdNum + 1;
-        }
-    }
-
-    public static void updateMemberCounter(int lastIdNum) {
-        if (lastIdNum >= memberCounter) {
-            memberCounter = lastIdNum + 1;
-        }
+    public String newID() {
+        return String.format("%s%0" + BASE_GENERATOR_SIZE + "d", PREFIX, iterator++);
     }
 }

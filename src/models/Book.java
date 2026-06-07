@@ -1,8 +1,10 @@
 package models;
 
+import utilities.IDManager;
+
 public class Book {
 
-    private String id;
+    private final String id;
     private String title;
     private String author;
     private String genre;
@@ -10,8 +12,8 @@ public class Book {
     private int totalQuantity;
     private int availableQuantity;
 
-    public Book(String id, String title, String author, String genre, int publicationYear, int totalQuantity) {
-        this.id = id;
+    public Book(String title, String author, String genre, int publicationYear, int totalQuantity) {
+        id = IDManager.bookIDGenerator.newID();
         this.title = title;
         this.author = author;
         this.genre = genre;
