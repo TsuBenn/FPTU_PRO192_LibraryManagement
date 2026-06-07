@@ -116,11 +116,11 @@ public class UIRender {
     }
 
     public static void pauseEnter() {
-        Input.getString("\nPress Enter to continue..."); 
+        InputController.getString("\nPress Enter to continue...");
     }
 
     public static void pauseEnter(String prompt) {
-        Input.getString("\n" + prompt); 
+        InputController.getString("\n" + prompt);
         System.out.println("");
     }
 

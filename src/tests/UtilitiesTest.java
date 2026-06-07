@@ -43,15 +43,15 @@ public class UtilitiesTest {
         System.out.println("to witness the loop trap them without crashing the application!\n");
 
         // Test the customized string reader
-        String sampleName = Input.getString("Enter a tester name: ");
+        String sampleName = InputController.getString("Enter a tester name: ");
         UIRender.renderSuccess("Captured Name: " + sampleName);
 
         // Test standard number trap
-        int sampleAge = Input.getInt("Enter an age (Whole Number): ");
+        int sampleAge = InputController.getInt("Enter an age (Whole Number): ");
         UIRender.renderSuccess("Captured Age: " + sampleAge);
 
         // Test dynamic overloaded error messaging
-        double samplePrice = Input.getDouble("Enter target item price: ", "CUSTOM ERROR: Invalid cash amount format!");
+        double samplePrice = InputController.getDouble("Enter target item price: ", "CUSTOM ERROR: Invalid cash amount format!");
         UIRender.renderSuccess("Captured Price: $" + samplePrice);
 
         UIRender.pauseEnter();
@@ -62,7 +62,7 @@ public class UtilitiesTest {
         System.out.println("Try testing invalid dates (e.g., 30/02/2026 or 32/01/2026):");
 
         // Triggers the nested loop capturing day, month, and year
-        LocalDate validatedDate = Input.getDate("Provide a safe target date configuration:");
+        LocalDate validatedDate = InputController.getDate("Provide a safe target date configuration:");
         UIRender.renderSuccess("Constructed LocalDate Instance: " + validatedDate);
 
         UIRender.pauseEnter();

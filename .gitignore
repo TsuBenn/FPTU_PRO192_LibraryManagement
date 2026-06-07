@@ -1,2 +1,69 @@
-/nbproject/private/
+# ====================================================================
+# COMPILATION RÁC & FILE ĐẦU RA (Java/Maven/Gradle)
+# ====================================================================
+*.class
+*.log
+*.ctxt
+.mtj.tmp/
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# Thư mục chứa code đã biên dịch
+target/
+bin/
+build/
+out/
+
+# ====================================================================
+# INTELLIJ IDEA (.idea & .iml)
+# ====================================================================
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+classes/
+# Giữ lại cấu trúc run configurations nếu bạn muốn chia sẻ cấu hình chạy app
+# !.idea/runConfigurations/
+
+# ====================================================================
+# NETBEANS (nbproject)
+# ====================================================================
+nbproject/private/
+nbproject/Makefile-*.mk
+nbproject/Package-*.bash
+build/
+nbdist/
+nbactions.xml
+nb-configuration.xml
+.nb-gradle/
+
+# ====================================================================
+# HỆ ĐIỀU HÀNH (OS Garbage)
+# ====================================================================
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# ====================================================================
+# CÁC BUILD TOOL KHÁC (Nếu sau này bạn nâng cấp dự án)
+# ====================================================================
+# Gradle
+.gradle/
 /build/
+
+# Crashlytics hoặc các file logs phát sinh khi chạy app
+*.log
+syslog

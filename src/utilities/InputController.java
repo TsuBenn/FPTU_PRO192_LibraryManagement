@@ -3,11 +3,9 @@ package utilities;
 import java.time.LocalDate;
 import java.util.Scanner;
 
-public class Input {
+public class InputController {
 
     private static Scanner sc = new Scanner(System.in);
-
-    // With prompt and without prompt, mostly for quality of life.
 
     private static void clearMess(int messCount) {
             UIRender.pauseEnter();
@@ -62,9 +60,9 @@ public class Input {
     public static LocalDate getDate(String prompt, String errorMessage) {
         System.out.println(prompt);
         while (true) {
-            int day = Input.getInt("Enter day (DD): ");
-            int month = Input.getInt("Enter month (MM): ");
-            int year = Input.getInt("Enter year (YYYY): ");
+            int day = InputController.getInt("Enter day (DD): ");
+            int month = InputController.getInt("Enter month (MM): ");
+            int year = InputController.getInt("Enter year (YYYY): ");
 
             if (Validator.isValidDate(day, month, year)) {
                 return LocalDate.of(year, month, day);
