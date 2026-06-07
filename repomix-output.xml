@@ -40,9 +40,20 @@ The content is organized as follows:
 </file_summary>
 
 <directory_structure>
+controllers/
+  LibraryController.java
+managers/
+  BookManager.java
+  BorrowTransactionManager.java
+  MemberManager.java
 models/
   Book.java
+  BorrowTransaction.java
+  Member.java
+tests/
+  UtilitiesTest.java
 utilities/
+  IDManager.java
   Input.java
   UIRender.java
   Validator.java
@@ -52,18 +63,804 @@ Main.java
 <files>
 This section contains the contents of the repository's files.
 
+<file path="controllers/LibraryController.java">
+package controllers;
+
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
+import managers.BookManager;
+import managers.MemberManager;
+import managers.BorrowTransactionManager;
+import models.Book;
+import models.Member;
+import models.BorrowTransaction;
+import utilities.Input;
+import utilities.UIRender;
+import utilities.Validator;
+import utilities.IDManager;
+
+public class LibraryController {
+    private BookManager bookManager;
+    private MemberManager memberManager;
+    private BorrowTransactionManager txManager;
+
+    public LibraryController() {
+        this.bookManager = new BookManager();
+        this.memberManager = new MemberManager();
+        this.txManager = new BorrowTransactionManager(bookManager, memberManager);
+        seedData();
+    }
+
+    public void start() {
+        boolean running = true;
+        String[] mainOptions = {
+            "Book Management",
+            "Member Management",
+            "Borrow a Book",
+            "Return a Book"
+        };
+
+        while (running) {
+            UIRender.clearScreen();
+            UIRender.renderMenu("Library Main Menu", mainOptions);
+
+            int choice = Input.getInt("Select an option: ");
+            switch (choice) {
+                case 1: handleBookMenu(); break;
+                case 2: handleMemberMenu(); break;
+                case 3: handleBorrowWorkflow(); break;
+                case 4: handleReturnWorkflow(); break;
+                case 0: running = false; break;
+                default: 
+                UIRender.renderError("Invalid option!");
+                UIRender.pauseEnter();
+            }
+        }
+    }
+
+    private void handleBookMenu() {
+        boolean inMenu = true;
+        String[] bookOptions = { "Add Book", "View All Books" };
+
+        while (inMenu) {
+            UIRender.clearScreen();
+            UIRender.renderMenu("Book Management", bookOptions);
+            int choice = Input.getInt("Select: ");
+
+            if (choice == 1) {
+                UIRender.clearScreen();
+                UIRender.renderHeader("Add New Book");
+                String id = IDManager.generateBookID();
+                System.out.println("Generated Book ID: " + id);
+
+                String title = Input.getString("Enter Title: ");
+                String author = Input.getString("Enter Author: ");
+                String genre = Input.getString("Enter Genre: ");
+                int year = Input.getInt("Enter Publication Year: ");
+                int qty = Input.getInt("Enter Total Quantity: ");
+
+                Book book = new Book(id, title, author, genre, year, qty);
+                if (bookManager.addBook(book)) {
+                    UIRender.renderSuccess("Book added successfully!");
+                } else {
+                    UIRender.renderError("Failed to add book.");
+                }
+                UIRender.pauseEnter();
+            } else if (choice == 2) {
+                UIRender.clearScreen();
+                UIRender.renderHeader("Book Database Registry");
+
+                List<Book> books = bookManager.getAllBooks();
+                String[] headers = {"ID", "Title", "Author", "Genre", "Year", "Available", "Total"};
+                List<String[]> tableData = new ArrayList<>();
+
+                for (Book b : books) {
+                    tableData.add(new String[] {
+                        b.getId(), b.getTitle(), b.getAuthor(), b.getGenre(),
+                        String.valueOf(b.getPublicationYear()),
+                        String.valueOf(b.getAvailableQuantity()),
+                        String.valueOf(b.getTotalQuantity())
+                    });
+                }
+
+                UIRender.renderTable(headers, tableData);
+                UIRender.pauseEnter();
+            } else if (choice == 0) {
+                inMenu = false;
+            } else {
+                UIRender.renderError("Invalid Option!");
+                UIRender.pauseEnter();
+            }
+        }
+    }
+
+    private void handleMemberMenu() {
+        boolean inMenu = true;
+        String[] memberOptions = { "Register Member", "View All Members" };
+
+        while (inMenu) {
+            UIRender.clearScreen();
+            UIRender.renderMenu("Member Management", memberOptions);
+            int choice = Input.getInt("Select: ");
+
+            if (choice == 1) {
+                UIRender.clearScreen();
+                UIRender.renderHeader("Register New Member");
+                String id = IDManager.generateMemberID();
+                System.out.println("Generated Member ID: " + id);
+
+                String name = Input.getString("Enter Name: ");
+                String phone = Input.getString("Enter Phone (10 digits): ");
+                String email = Input.getString("Enter Email: ");
+
+                if (!Validator.isValidPhone(phone) || !Validator.isValidEmail(email)) {
+                    UIRender.renderError("Invalid contact details format!");
+                    UIRender.pauseEnter();
+                    continue;
+                }
+
+                Member m = new Member(id, name, phone, email);
+                if (memberManager.addMember(m)) {
+                    UIRender.renderSuccess("Member registered successfully!");
+                } else {
+                    UIRender.renderError("Failed to register member.");
+                }
+                UIRender.pauseEnter();
+            } else if (choice == 2) {
+                UIRender.clearScreen();
+                UIRender.renderHeader("Member Database Registry");
+
+                List<Member> members = memberManager.getAllMembers();
+                String[] headers = {"ID", "Name", "Phone Number", "Email Address"};
+                List<String[]> tableData = new ArrayList<>();
+
+                for (Member m : members) {
+                    tableData.add(new String[] { m.getId(), m.getName(), m.getPhone(), m.getEmail() });
+                }
+
+                UIRender.renderTable(headers, tableData);
+                UIRender.pauseEnter();
+            } else if (choice == 0) {
+                inMenu = false;
+            } else {
+                UIRender.renderError("Invalid Option!");
+                UIRender.pauseEnter();
+            }
+        }
+    }
+
+    private void handleBorrowWorkflow() {
+        UIRender.clearScreen();
+        UIRender.renderHeader("Borrow Workflow: Select Member");
+        String mQuery = Input.getString("Enter Member Name or ID to search: ");
+        List<Member> matchedMembers = memberManager.searchMembers(mQuery);
+
+        if (matchedMembers.isEmpty()) {
+            UIRender.renderError("No matching members found.");
+            UIRender.pauseEnter();
+            return;
+        }
+
+        String[] memberHeaders = {"Index", "ID", "Name"};
+        List<String[]> memberTable = new ArrayList<>();
+        for (int i = 0; i < matchedMembers.size(); i++) {
+            Member m = matchedMembers.get(i);
+            memberTable.add(new String[] { String.valueOf(i + 1), m.getId(), m.getName() });
+        }
+        UIRender.renderTable(memberHeaders, memberTable);
+
+        int mIdx = Input.getInt("Select member index: ") - 1;
+        if (mIdx < 0 || mIdx >= matchedMembers.size()) return;
+        Member member = matchedMembers.get(mIdx);
+
+        System.out.println("\n");
+        UIRender.renderHeader("Borrow Workflow: Select Book");
+        String bQuery = Input.getString("Enter Book Title, Author or ID to search: ");
+        List<Book> matchedBooks = bookManager.searchBooks(bQuery);
+
+        if (matchedBooks.isEmpty()) {
+            UIRender.renderError("No matching books found.");
+            UIRender.pauseEnter();
+            return;
+        }
+
+        String[] bookHeaders = {"Index", "ID", "Title", "Author", "Available"};
+        List<String[]> bookTable = new ArrayList<>();
+        for (int i = 0; i < matchedBooks.size(); i++) {
+            Book b = matchedBooks.get(i);
+            bookTable.add(new String[] { String.valueOf(i + 1), b.getId(), b.getTitle(), b.getAuthor(), String.valueOf(b.getAvailableQuantity()) });
+        }
+        UIRender.renderTable(bookHeaders, bookTable);
+
+        int bIdx = Input.getInt("Select book index: ") - 1;
+        if (bIdx < 0 || bIdx >= matchedBooks.size()) return;
+        Book book = matchedBooks.get(bIdx);
+
+        System.out.println("\n");
+        LocalDate borrowDate = Input.getDate("--- Borrow Workflow: Loan Date Processing ---");
+
+        String generatedTxId = IDManager.generateTransactionID();
+        boolean success = txManager.borrowBook(generatedTxId, member.getId(), book.getId(), borrowDate);
+        if (success) {
+            UIRender.renderSuccess("ID: " + generatedTxId + " | Book '" + book.getTitle() + "' successfully assigned to " + member.getName());
+        } else {
+            UIRender.renderError("Transaction Rejected! System validation constraints triggered.");
+        }
+        UIRender.pauseEnter();
+    }
+
+    private void handleReturnWorkflow() {
+        UIRender.clearScreen();
+        UIRender.renderHeader("Return Workflow: Select Member");
+
+        // Step 1: Search and Select the Member
+        String mQuery = Input.getString("Enter Member Name or ID to search: ");
+        List<Member> matchedMembers = memberManager.searchMembers(mQuery);
+
+        if (matchedMembers.isEmpty()) {
+            UIRender.renderError("No matching members found.");
+            UIRender.pauseEnter();
+            return;
+        }
+
+        String[] memberHeaders = {"Index", "ID", "Name"};
+        List<String[]> memberTable = new ArrayList<>();
+        for (int i = 0; i < matchedMembers.size(); i++) {
+            Member m = matchedMembers.get(i);
+            memberTable.add(new String[] { String.valueOf(i + 1), m.getId(), m.getName() });
+        }
+        UIRender.renderTable(memberHeaders, memberTable);
+
+        int mIdx = Input.getInt("Select member index: ") - 1;
+        if (mIdx < 0 || mIdx >= matchedMembers.size()) return;
+        Member member = matchedMembers.get(mIdx);
+
+        // Step 2: Fetch and Display ONLY Active Loans for this Member
+        System.out.println("\n");
+        UIRender.renderHeader("Active Loans for " + member.getName());
+        List<BorrowTransaction> activeLoans = txManager.getActiveTransactionsByMember(member.getId());
+
+        if (activeLoans.isEmpty()) {
+            UIRender.renderError("This member currently has no outstanding books checked out.");
+            UIRender.pauseEnter();
+            return;
+        }
+
+        String[] loanHeaders = {"Index", "Book ID", "Book Title", "Borrow Date", "Due Date"};
+        List<String[]> loanTable = new ArrayList<>();
+        for (int i = 0; i < activeLoans.size(); i++) {
+            BorrowTransaction tx = activeLoans.get(i);
+            // Cross-reference the Book ID with the BookManager to print the actual Title
+            Book book = bookManager.findBookById(tx.getBookId());
+            String title = (book != null) ? book.getTitle() : "Unknown Asset";
+
+            loanTable.add(new String[] {
+                String.valueOf(i + 1),
+                tx.getBookId(),
+                title,
+                tx.getBorrowDate().toString(),
+                tx.getDueDate().toString()
+            });
+        }
+        UIRender.renderTable(loanHeaders, loanTable);
+
+        int lIdx = Input.getInt("Select book index to return: ") - 1;
+        if (lIdx < 0 || lIdx >= activeLoans.size()) return;
+        BorrowTransaction targetTx = activeLoans.get(lIdx);
+
+        // Step 3: Date Handling Logic (Your flexible days-kept shortcut configuration)
+        System.out.println("\n");
+        UIRender.renderHeader("Processing Return for: " + bookManager.findBookById(targetTx.getBookId()).getTitle());
+        LocalDate borrowDate = targetTx.getBorrowDate();
+        LocalDate returnDate = null;
+
+        System.out.println("Return Tracking Configuration Options:");
+        System.out.println("  [1] Enter a specific calendar date");
+        System.out.println("  [2] Enter total days kept (Relative to borrow date)");
+        int returnChoice = Input.getInt("Select option: ");
+
+        if (returnChoice == 1) {
+            System.out.println("\n");
+            returnDate = Input.getDate("--- Enter Actual Return Date ---");
+        } else if (returnChoice == 2) {
+            System.out.println("\nAsset was checked out on: " + borrowDate);
+            int daysKept = Input.getInt("Enter number of days the member kept the book: ");
+            if (daysKept < 0) {
+                UIRender.renderError("Days kept cannot be negative!");
+                UIRender.pauseEnter();
+                return;
+            }
+            returnDate = borrowDate.plusDays(daysKept);
+        } else {
+            UIRender.renderError("Invalid option selected!");
+            UIRender.pauseEnter();
+            return;
+        }
+
+        // Step 4: Chronological Safety Check
+        if (returnDate.isBefore(borrowDate)) {
+            UIRender.renderError("Chronological Error: Return date (" + returnDate + 
+                ") cannot sit behind borrow date (" + borrowDate + ").");
+            UIRender.pauseEnter();
+            return;
+        }
+
+        // Step 5: Execute via safe concrete IDs pulled straight from our selection
+        double fine = txManager.returnBook(member.getId(), targetTx.getBookId(), returnDate);
+        if (fine > 0) {
+            UIRender.renderSuccess("Item returned successfully!");
+            System.out.printf(">>> LATE RETURN PENALTY FEE DUE: %,.0f VND\n", fine);
+        } else {
+            UIRender.renderSuccess("Item returned on schedule. Zero balance fines.");
+        }
+        UIRender.pauseEnter();
+    }
+
+    private void seedData() {
+        bookManager.addBook(new Book(IDManager.generateBookID(), "The Great Gatsby", "F. Scott Fitzgerald", "Classic", 1925, 5));
+        bookManager.addBook(new Book(IDManager.generateBookID(), "1984", "George Orwell", "Dystopian", 1949, 3));
+        memberManager.addMember(new Member(IDManager.generateMemberID(), "Benn", "0123456789", "benn@uni.edu.vn"));
+    }
+}
+</file>
+
+<file path="managers/BookManager.java">
+package managers;
+
+import java.util.ArrayList;
+import java.util.List;
+import models.Book;
+
+public class BookManager {
+
+    private List<Book> books;
+
+    public BookManager() {
+        this.books = new ArrayList<>();
+    }
+
+    public boolean addBook(Book book) {
+        if (findBookById(book.getId()) != null) return false;
+        books.add(book);
+        return true;
+    }
+
+    public Book findBookById(String id) {
+        for (Book b : books) {
+            if (b.getId().equalsIgnoreCase(id.trim())) return b;
+        }
+        return null;
+    }
+
+    public List<Book> searchBooks(String query) {
+        List<Book> matches = new ArrayList<>();
+        String lowerQuery = query.toLowerCase().trim();
+        for (Book b : books) {
+            if (b.getId().toLowerCase().contains(lowerQuery) ||
+                b.getTitle().toLowerCase().contains(lowerQuery) ||
+                b.getAuthor().toLowerCase().contains(lowerQuery) ||
+                b.getGenre().toLowerCase().contains(lowerQuery)) {
+                matches.add(b);
+            }
+        }
+        return matches;
+    }
+
+    public List<Book> getAllBooks() { return books; }
+
+}
+</file>
+
+<file path="managers/BorrowTransactionManager.java">
+package managers;
+
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.List;
+import models.Book;
+import models.Member;
+import models.BorrowTransaction;
+
+public class BorrowTransactionManager {
+
+    private List<BorrowTransaction> transactions;
+    private BookManager bookManager;
+    private MemberManager memberManager;
+
+    public List<BorrowTransaction> getActiveTransactionsByMember(String memberId) {
+        List<BorrowTransaction> activeLoans = new ArrayList<>();
+        for (BorrowTransaction tx : transactions) {
+            if (tx.getMemberId().equalsIgnoreCase(memberId) && tx.getReturnDate() == null) {
+                activeLoans.add(tx);
+            }
+        }
+        return activeLoans;
+    }
+
+    public BorrowTransactionManager(BookManager bookManager, MemberManager memberManager) {
+        this.transactions = new ArrayList<>();
+        this.bookManager = bookManager;
+        this.memberManager = memberManager;
+    }
+
+    // Add this helper inside BorrowTransactionManager.java
+    public BorrowTransaction getActiveTransaction(String memberId, String bookId) {
+        return findActiveTransaction(memberId, bookId);
+    }
+
+    // --- GUARD CLAUSE PATTERN BORROW ---
+    public boolean borrowBook(String txId, String memberId, String bookId, LocalDate borrowDate) {
+        Member member = memberManager.findMemberById(memberId);
+        if (member == null) return false;
+
+        Book book = bookManager.findBookById(bookId);
+        if (book == null) return false;
+
+        if (book.getAvailableQuantity() <= 0) return false;
+
+        if (countActiveBorrows(memberId) >= member.getBorrowLimit()) return false;
+
+        // Commit execution safely
+        BorrowTransaction tx = new BorrowTransaction(txId, memberId, bookId, borrowDate);
+        transactions.add(tx);
+        book.setAvailableQuantity(book.getAvailableQuantity() - 1);
+        return true;
+    }
+
+    // --- RETURN PROCESS WITH FINE EVALUATION ---
+    public double returnBook(String memberId, String bookId, LocalDate returnDate) {
+        BorrowTransaction activeTx = findActiveTransaction(memberId, bookId);
+        if (activeTx == null) return -1.0; // Indicates transaction wasn't found
+
+        activeTx.setReturnDate(returnDate);
+        Book book = bookManager.findBookById(bookId);
+        if (book != null) {
+            book.setAvailableQuantity(book.getAvailableQuantity() + 1);
+        }
+
+        long daysPastDue = ChronoUnit.DAYS.between(activeTx.getDueDate(), returnDate);
+        double fine = 0.0;
+        if (daysPastDue > 0) {
+            fine = daysPastDue * 5000.0; // 5000 VND / Day
+            activeTx.setFinePaid(fine);
+        }
+        return fine;
+    }
+
+    // --- SAFETY LOCK CHECKS FOR CRUD ---
+    public boolean isBookCurrentlyBorrowed(String bookId) {
+        for (BorrowTransaction tx : transactions) {
+            if (tx.getBookId().equalsIgnoreCase(bookId) && tx.getReturnDate() == null) {
+                return true; 
+            }
+        }
+        return false;
+    }
+
+    public boolean isMemberCurrentlyBorrowing(String memberId) {
+        return countActiveBorrows(memberId) > 0;
+    }
+
+    private int countActiveBorrows(String memberId) {
+        int count = 0;
+        for (BorrowTransaction tx : transactions) {
+            if (tx.getMemberId().equalsIgnoreCase(memberId) && tx.getReturnDate() == null) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private BorrowTransaction findActiveTransaction(String memberId, String bookId) {
+        for (BorrowTransaction tx : transactions) {
+            if (tx.getMemberId().equalsIgnoreCase(memberId) && 
+            tx.getBookId().equalsIgnoreCase(bookId) && 
+            tx.getReturnDate() == null) {
+                return tx;
+            }
+        }
+        return null;
+    }
+
+    public List<BorrowTransaction> getTransactions() { return transactions; }
+
+}
+</file>
+
+<file path="managers/MemberManager.java">
+package managers;
+
+import java.util.ArrayList;
+import java.util.List;
+import models.Member;
+
+public class MemberManager {
+
+    private List<Member> members;
+
+    public MemberManager() {
+        this.members = new ArrayList<>();
+    }
+
+    public boolean addMember(Member member) {
+        if (findMemberById(member.getId()) != null) return false;
+        members.add(member);
+        return true;
+    }
+
+    public Member findMemberById(String id) {
+        for (Member m : members) {
+            if (m.getId().equalsIgnoreCase(id.trim())) return m;
+        }
+        return null;
+    }
+
+    public List<Member> searchMembers(String query) {
+        List<Member> matches = new ArrayList<>();
+        String lowerQuery = query.toLowerCase().trim();
+        for (Member m : members) {
+            if (m.getId().toLowerCase().contains(lowerQuery) ||
+                m.getName().toLowerCase().contains(lowerQuery)) {
+                matches.add(m);
+            }
+        }
+        return matches;
+    }
+
+    public List<Member> getAllMembers() { return members; }
+
+}
+</file>
+
 <file path="models/Book.java">
 package models;
 
-import java.util.UUID;
-
 public class Book {
-    UUID id;
-    String title;
-    String author;
-    int publishYear;
-    int quantity;
-};
+
+    private String id;
+    private String title;
+    private String author;
+    private String genre;
+    private int publicationYear;
+    private int totalQuantity;
+    private int availableQuantity;
+
+    public Book(String id, String title, String author, String genre, int publicationYear, int totalQuantity) {
+        this.id = id;
+        this.title = title;
+        this.author = author;
+        this.genre = genre;
+        this.publicationYear = publicationYear;
+        this.totalQuantity = totalQuantity;
+        this.availableQuantity = totalQuantity; // Initially, all copies are available
+    }
+
+    // Getters and Setters
+    public String getId() { return id; }
+    public String getTitle() { return title; }
+    public void setTitle(String title) { this.title = title; }
+    public String getAuthor() { return author; }
+    public void setAuthor(String author) { this.author = author; }
+    public String getGenre() { return genre; }
+    public void setGenre(String genre) { this.genre = genre; }
+    public int getPublicationYear() { return publicationYear; }
+    public void setPublicationYear(int publicationYear) { this.publicationYear = publicationYear; }
+    public int getTotalQuantity() { return totalQuantity; }
+
+    public void setTotalQuantity(int totalQuantity) { 
+        // Sync available quantity safely when total quantity shifts
+        int borrowedCount = this.totalQuantity - this.availableQuantity;
+        this.totalQuantity = totalQuantity;
+        this.availableQuantity = totalQuantity - borrowedCount;
+    }
+
+    public int getAvailableQuantity() { return availableQuantity; }
+    public void setAvailableQuantity(int availableQuantity) { this.availableQuantity = availableQuantity; }
+
+}
+</file>
+
+<file path="models/BorrowTransaction.java">
+package models;
+
+import java.time.LocalDate;
+
+public class BorrowTransaction {
+
+    private String transactionId;
+    private String memberId;
+    private String bookId;
+    private LocalDate borrowDate;
+    private LocalDate dueDate;
+    private LocalDate returnDate;
+    private double finePaid;
+
+    public BorrowTransaction(String transactionId, String memberId, String bookId, LocalDate borrowDate) {
+        this.transactionId = transactionId;
+        this.memberId = memberId;
+        this.bookId = bookId;
+        this.borrowDate = borrowDate;
+        this.dueDate = borrowDate.plusDays(14); // Default 14-day loan period
+        this.returnDate = null; // null means it's currently outstanding
+        this.finePaid = 0.0;
+    }
+
+    // Getters and Setters
+    public String getTransactionId() { return transactionId; }
+    public String getMemberId() { return memberId; }
+    public String getBookId() { return bookId; }
+    public LocalDate getBorrowDate() { return borrowDate; }
+    public LocalDate getDueDate() { return dueDate; }
+    public LocalDate getReturnDate() { return returnDate; }
+    public void setReturnDate(LocalDate returnDate) { this.returnDate = returnDate; }
+    public double getFinePaid() { return finePaid; }
+    public void setFinePaid(double finePaid) { this.finePaid = finePaid; }
+
+}
+</file>
+
+<file path="models/Member.java">
+package models;
+
+public class Member {
+
+    private String id;
+    private String name;
+    private String phone;
+    private String email;
+
+    public Member(String id, String name, String phone, String email) {
+        this.id = id;
+        this.name = name;
+        this.phone = phone;
+        this.email = email;
+    }
+
+    // Milestone 3 Hook: dynamic limit extraction instead of hardcoding '3' in loops
+    public int getBorrowLimit() {
+        return 3; 
+    }
+
+    // Getters and Setters
+    public String getId() { return id; }
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
+    public String getPhone() { return phone; }
+    public void setPhone(String phone) { this.phone = phone; }
+    public String getEmail() { return email; }
+    public void setEmail(String email) { this.email = email; }
+
+}
+</file>
+
+<file path="tests/UtilitiesTest.java">
+package tests;
+
+import java.util.List;
+import java.util.ArrayList;
+import java.time.LocalDate;
+
+import utilities.*;
+
+public class UtilitiesTest {
+
+    public static void testUtilities() {
+
+        // --- SCENARIO 1: Test UI Elements & Formatting ---
+        UIRender.clearScreen(); // Will clear if supported by terminal
+        UIRender.renderHeader("Executing Utilities Test Suite");
+
+        System.out.println("Testing raw Regex definitions via Validator class:");
+        System.out.println("  Is 'abc' a valid int? " + Validator.isValidInt("abc"));
+        System.out.println("  Is '125' a valid int? " + Validator.isValidInt("125"));
+        System.out.println("  Is '-4.25' a valid double? " + Validator.isValidDouble("-4.25"));
+        System.out.println("  Is '0987654321' a valid phone? " + Validator.isValidPhone("0987654321"));
+
+        UIRender.pauseEnter(); // Tests the pause mechanic
+
+        // --- SCENARIO 2: Interactive Menu Display ---
+        UIRender.clearScreen();
+        String[] mockMainMenuOptions = {
+            "Book Inventory Subsystem", 
+            "Member Directory Subsystem", 
+            "Circulation Transactions", 
+            "Analytical Reports"
+        };
+        // Rendering the menu flexibly
+        UIRender.renderMenu("Library Controller Simulation", mockMainMenuOptions); 
+        System.out.println("Visual look check complete.");
+
+        UIRender.pauseEnter();
+
+        // --- SCENARIO 3: Testing Guarded Primitive Inputs ---
+        UIRender.clearScreen();
+        UIRender.renderHeader("Defensive Input Capture Testing");
+        System.out.println("NOTE: Please intentionally type bad values (letters, spaces, empty values)");
+        System.out.println("to witness the loop trap them without crashing the application!\n");
+
+        // Test the customized string reader
+        String sampleName = Input.getString("Enter a tester name: ");
+        UIRender.renderSuccess("Captured Name: " + sampleName);
+
+        // Test standard number trap
+        int sampleAge = Input.getInt("Enter an age (Whole Number): ");
+        UIRender.renderSuccess("Captured Age: " + sampleAge);
+
+        // Test dynamic overloaded error messaging
+        double samplePrice = Input.getDouble("Enter target item price: ", "CUSTOM ERROR: Invalid cash amount format!");
+        UIRender.renderSuccess("Captured Price: $" + samplePrice);
+
+        UIRender.pauseEnter();
+
+        // --- SCENARIO 4: Calendar Math Verification ---
+        UIRender.clearScreen();
+        UIRender.renderHeader("Calendar Logic Boundary Testing");
+        System.out.println("Try testing invalid dates (e.g., 30/02/2026 or 32/01/2026):");
+
+        // Triggers the nested loop capturing day, month, and year
+        LocalDate validatedDate = Input.getDate("Provide a safe target date configuration:");
+        UIRender.renderSuccess("Constructed LocalDate Instance: " + validatedDate);
+
+        UIRender.pauseEnter();
+
+        // --- SCENARIO 5: Dynamic Table Formatting Engine ---
+        UIRender.clearScreen();
+        UIRender.renderHeader("Final Comprehensive Table Render Report");
+
+        String[] headers = {"Asset ID", "Resource Title", "Primary Contributor", "Stock Status"};
+        List<String[]> dataRows = new ArrayList<>();
+
+        // Testing columns scaling to accommodate different string lengths dynamically
+        dataRows.add(new String[]{"B001", "Dune", "Frank Herbert", "5 Units"});
+        dataRows.add(new String[]{"B002", "The Hitchhiker's Guide to the Galaxy", "Douglas Adams", "12 Units"});
+        dataRows.add(new String[]{"B003", "Neuromancer", "William Gibson", "0 Units"});
+        dataRows.add(new String[]{"M042", "Alice Vance", "Premium Tier", "Active"});
+
+        UIRender.renderTable(headers, dataRows); // Output dynamic dataset
+
+        System.out.println("\nAll utility targets checked successfully.");
+
+    }
+
+}
+</file>
+
+<file path="utilities/IDManager.java">
+package utilities;
+
+public class IDManager {
+
+    private static int bookCounter = 1;
+    private static int memberCounter = 1;
+    private static int transactionCounter = 1;
+
+    public static String generateBookID() {
+        return String.format("B%03d", bookCounter++); // e.g., B001, B002
+    }
+
+    public static String generateMemberID() {
+        return String.format("M%03d", memberCounter++); // e.g., M001, M002
+    }
+
+    public static String generateTransactionID() {
+        return String.format("T%03d", transactionCounter++); // e.g., T001, T002
+    }
+
+    // For Milestone 4: Call these when loading files so your counters don't reset!
+    public static void updateBookCounter(int lastIdNum) {
+        if (lastIdNum >= bookCounter) {
+            bookCounter = lastIdNum + 1;
+        }
+    }
+
+    public static void updateMemberCounter(int lastIdNum) {
+        if (lastIdNum >= memberCounter) {
+            memberCounter = lastIdNum + 1;
+        }
+    }
+}
 </file>
 
 <file path="utilities/Input.java">
@@ -77,6 +874,11 @@ public class Input {
     private static Scanner sc = new Scanner(System.in);
 
     // With prompt and without prompt, mostly for quality of life.
+
+    private static void clearMess(int messCount) {
+            UIRender.pauseEnter();
+            UIRender.clearLinesUp(messCount);
+    }
 
     public static String getString(String prompt) {
         String input;
@@ -95,6 +897,7 @@ public class Input {
                 return Integer.parseInt(input);
             }
             UIRender.renderError(errorMessage);
+            clearMess(5);
         }
     } 
 
@@ -111,6 +914,7 @@ public class Input {
                 return Double.parseDouble(input);
             }
             UIRender.renderError(errorMessage);
+            clearMess(5);
         }
     } 
 
@@ -132,6 +936,7 @@ public class Input {
                 return LocalDate.of(year, month, day);
             }
             UIRender.renderError(errorMessage);
+            clearMess(7);
         }
     } 
 
@@ -149,14 +954,18 @@ import java.util.List;
 
 public class UIRender {
 
-    // Still don't whether to make UIRender static or not.
+    // Still don't know whether to make UIRender static or not.
 
     private static final String BORDER_LINE = "==================================================";
     private static final String DIVIDER_LINE = "--------------------------------------------------";
 
     public static void renderHeader(String title) {
         System.out.println("\n" + BORDER_LINE);
-        System.out.println("                " + title.toUpperCase());
+
+        int paddingSpaces = (BORDER_LINE.length() - title.length()) / 2;
+        int totalWidth = paddingSpaces + title.length();
+        System.out.printf("%" + totalWidth + "s\n", title.toUpperCase());
+
         System.out.println(BORDER_LINE);
     }
 
@@ -220,7 +1029,10 @@ public class UIRender {
 
         StringBuilder dividerSB = new StringBuilder("+"); // StringBuilder for mutable String
         for (int width : colWidths) {
-            dividerSB.append("-".repeat(width + 2)).append("+");
+            for (int i = 0; i < width + 2; i++) {
+                dividerSB.append("-");
+            }
+            dividerSB.append("+");
         }
         String divider = dividerSB.toString();
 
@@ -246,20 +1058,34 @@ public class UIRender {
     }
 
     public static void renderSuccess(String message) {
-        System.out.println("\n[SUCCESS] >>> " + message);
+        System.out.println("\n[SUCCESS] >>> " + message + "\n");
     }
 
     public static void renderError(String message) {
-        System.err.println("\n[ERROR] !!! " + message + " !!!");
+        System.err.println("\n[ERROR] !!! " + message + " !!!\n");
     }
 
     public static void pauseEnter() {
-        Input.getString("\nPress Enter to return to the menu..."); 
+        Input.getString("Press Enter to continue..."); 
     }
 
-    // Won't work in NetBeans but work if you compile it and run it as a jar.
+    public static void pauseEnter(String prompt) {
+        Input.getString("\n" + prompt); 
+        System.out.println("");
+    }
+
+    // Both of these won't work in NetBeans but work if you run it in the terminal.
     public static void clearScreen() {
         System.out.print("\033[H\033[2J");
+        System.out.flush();
+    }
+
+    public static void clearLinesUp(int count) {
+        for (int i = 0; i < count; i++) {
+            // \033[1A : Move cursor up 1 line
+            // \033[2K : Clear that entire line
+            System.out.print("\033[1A\033[2K");
+        }
         System.out.flush();
     }
 
@@ -284,7 +1110,7 @@ public class Validator {
     }
 
     public static boolean isValidEmail(String str) {
-        return str != null && str.matches("^\\[0-9a-zA-Z._%+-]+@[0-9a-zA-Z.-]+\\.[A-Za-z]{2,6}$"); // Assuming an email has text@text.text
+        return str != null && str.matches("^[0-9a-zA-Z._%+-]+@[0-9a-zA-Z.-]+\\.[A-Za-z]{2,6}$"); // Assuming an email has text@text.text
     }
 
 
@@ -301,7 +1127,7 @@ public class Validator {
     }
 
     public static boolean isValidPhone(String str) {
-        return str != null && str.matches("[0-9]{10}"); // Assuming a valid phone number is 10 digits number
+        return str != null && str.matches("^[0-9]{10}$"); // Assuming a valid phone number is 10 digits number
     }
 
     // We could validate Book or Member here but I think the BookManager and MemberManager or Book and Member itself should handle it.
@@ -310,30 +1136,16 @@ public class Validator {
 </file>
 
 <file path="Main.java">
-import java.time.LocalDate;
-
-import java.util.ArrayList;
-import java.util.List;
-
-import utilities.Input;
-import utilities.UIRender;
+import controllers.LibraryController;
 
 public class Main {
 
     public static void main(String[] args) {
-
-        String[] headers = {"Book ID", "Title", "Author", "Qty"};
-
-        List<String[]> dataRows = new ArrayList<>();
-
-        // Sample populated data (In a real app, this loops over your internal books list)
-        dataRows.add(new String[]{"B001", "Dune", "Frank Herbert", "5"});
-        dataRows.add(new String[]{"B002", "The Hobbit", "J.R.R. Tolkien", "12"});
-        dataRows.add(new String[]{"B003", "Neuromancer", "William Gibson", "3"});
-
-        // Pass it straight to your tool
-        UIRender.renderTable(headers, dataRows);
-
+        // Instantiate the controller layer engine
+        LibraryController app = new LibraryController();
+        
+        // Start processing user inputs via the central application loop
+        app.start();
     }
 
 }
