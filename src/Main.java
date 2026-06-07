@@ -1,178 +1,106 @@
-import service.*;
-import models.*;
+import service.BookList;
+import service.MemberList;
+import managers.BorrowingManager;
+import models.Book;
+import models.Member;
 import utilities.InputController;
 import utilities.UIRender;
 
-import java.time.LocalDate;
-
 public class Main {
-    private static final BookManagement bookRepo = new BookManagement();
-    private static final MemberManagement memberRepo = new MemberManagement();
-    private static final BorrowTransactionManagement txRepo = new BorrowTransactionManagement();
+    private BookList bookRepo = new BookList();
+    private MemberList memberRepo = new MemberList();
+    private BorrowingManager txRepo = new BorrowingManager();
 
-    private static final LibraryService coreService = new LibraryService(bookRepo, memberRepo, txRepo);
-    private static final ReportManagement reportEngine = new ReportManagement(bookRepo, memberRepo, txRepo);
+    public void seedData() {
+        bookRepo.addBook(new Book("BOK00001", "Clean Code", "Robert C. Martin", "Technology", 2008, 5));
+        bookRepo.addBook(new Book("BOK00002", "Effective Java", "Joshua Bloch", "Technology", 2018, 2));
+
+        memberRepo.registerMember(new Member("MEM00001", "Alice Nguyen", "0901234567", "alice@gmail.com"));
+        memberRepo.registerMember(new Member("MEM00002", "Bob Tran", "0987654321", "bob@gmail.com"));
+    }
+
+    public void runMenu() {
+        // Cập nhật mảng chuỗi hiển thị giao diện theo đúng yêu cầu hàm renderMenu
+        String[] menuOptions = {
+                "Add New Book",
+                "Register Member",
+                "Issue Book Loan (Borrow)",
+                "Process Book Return (Return)", // Thêm chức năng xử lý trả sách vào menu
+                "Display All Books",
+                "Display All Members",
+                "Display All Transactions",
+                "Exit System"
+        };
+
+        while (true) {
+            UIRender.renderMenu("Library Management Dashboard", menuOptions);
+
+            int choice = InputController.getInt("\nEnter your selection: ");
+
+            switch (choice) {
+                case 1:
+                    UIRender.renderHeader("Add New Book");
+                    String bId = InputController.getString("Enter Book ID: ");
+                    String title = InputController.getString("Enter Title: ");
+                    String author = InputController.getString("Enter Author: ");
+                    String genre = InputController.getString("Enter Genre: ");
+                    int year = InputController.getInt("Enter Publication Year: ");
+                    int qty = InputController.getInt("Enter Initial Stock Quantity: ");
+                    bookRepo.addBook(new Book(bId, title, author, genre, year, qty));
+                    break;
+
+                case 2:
+                    UIRender.renderHeader("Register Member");
+                    String mId = InputController.getString("Enter Member ID: ");
+                    String name = InputController.getString("Enter Full Name: ");
+                    String phone = InputController.getString("Enter Phone Number: ");
+                    String email = InputController.getString("Enter Email Address: ");
+                    memberRepo.registerMember(new Member(mId, name, phone, email));
+                    break;
+
+                case 3:
+                    UIRender.renderHeader("Process Borrow Transaction");
+                    String txId = InputController.getString("Enter Transaction ID: ");
+                    String memberId = InputController.getString("Enter Member ID: ");
+                    String bookId = InputController.getString("Enter Book ID: ");
+
+                    Member targetMember = memberRepo.searchById(memberId);
+                    Book targetBook = bookRepo.searchById(bookId);
+
+                    txRepo.processBorrow(txId, targetMember, targetBook);
+                    break;
+
+                case 4: // CHỨC NĂNG MỚI: Tiếp nhận và xử lý trả sách từ thủ thư
+                    UIRender.renderHeader("Process Book Return");
+                    String returnTxId = InputController.getString("Enter Transaction ID to return: ");
+                    txRepo.processReturn(returnTxId);
+                    break;
+
+                case 5:
+                    bookRepo.displayAll();
+                    break;
+
+                case 6:
+                    memberRepo.displayAll();
+                    break;
+
+                case 7:
+                    txRepo.displayAllTransactions();
+                    break;
+
+                case 8: // Thoát hệ thống lúc này dịch chuyển xuống case số 8 vì mảng tăng thêm 1 phần tử
+                    System.out.println("\nShutting down application. Goodbye!");
+                    return;
+
+                default:
+                    UIRender.renderError("Invalid choice! Please choose a valid menu number.");
+            }
+        }
+    }
 
     public static void main(String[] args) {
-        seedData();
-
-        while (true) {
-            UIRender.clearScreen();
-            String[] menus = {
-                    "Catalog Terminal (CRUD Book)",
-                    "Membership Terminal (CRUD Member)",
-                    "Circulation Desk (Borrow & Return)",
-                    "Analytics & Reporting Center"
-            };
-            UIRender.renderMenu("Library Core Decoupled Management System Engine", menus);
-            int cat = InputController.getInt("Select domain department: ");
-
-            switch (cat) {
-                case 1: bookCliLoop(); break;
-                case 2: memberCliLoop(); break;
-                case 3: circulationCliLoop(); break;
-                case 4: reportCliLoop(); break;
-                case 0: UIRender.renderSuccess("Exiting production workspace. System shutdown cleanly."); System.exit(0);
-            }
-        }
-    }
-
-    private static void bookCliLoop() {
-        while (true) {
-            UIRender.clearScreen();
-            String[] ops = {"Add Book", "Display Inventory Status", "Modify Records", "Liquidate Book (Hard-Delete)"};
-            UIRender.renderMenu("Catalog Asset Sub-Terminal", ops);
-            int op = InputController.getInt("Select: ");
-            if (op == 0) return;
-
-            switch (op) {
-                case 1: Book b = bookRepo.inputBook(); if (b!=null) bookRepo.add(b); break;
-                case 2: bookRepo.displayAllBooks(); break;
-                case 3:
-                    String upId = InputController.getString("Book ID: ");
-                    Book data = bookRepo.inputBook();
-                    if (data != null) bookRepo.update(upId, data);
-                    break;
-                case 4:
-                    String delId = InputController.getString("Book ID to Liquidate: ");
-                    coreService.deleteBook(delId);
-                    break;
-            }
-            UIRender.pauseEnter();
-        }
-    }
-
-    private static void memberCliLoop() {
-        while (true) {
-            UIRender.clearScreen();
-            String[] ops = {"Register New Profile", "Display Directory", "Modify Profile Details", "Expunge Account (Hard-Delete)"};
-            UIRender.renderMenu("Membership Registration Sub-Terminal", ops);
-            int op = InputController.getInt("Select: ");
-            if (op == 0) return;
-
-            switch (op) {
-                case 1: Member m = memberRepo.inputMember(); if(m!=null) memberRepo.addMember(m); break;
-                case 2: memberRepo.displayAllMembers(); break;
-                case 3:
-                    String mid = InputController.getString("Member ID: ");
-                    Member data = memberRepo.inputMember();
-                    if (data != null) memberRepo.updateMember(mid, data);
-                    break;
-                case 4:
-                    String wipeId = InputController.getString("Member ID to Wipe: ");
-                    if(!coreService.deleteMember(wipeId))
-                        UIRender.renderError("Remove failed! No member found!");
-                    break;
-            }
-            UIRender.pauseEnter();
-        }
-    }
-
-    private static void circulationCliLoop() {
-        while (true) {
-            UIRender.clearScreen();
-            String[] ops = {"Book Borrow Check-out Event", "Book Return Check-in Event", "View Raw Trans Journal Logs"};
-            UIRender.renderMenu("Circulation Operations Service Desk", ops);
-            int op = InputController.getInt("Select: ");
-            if (op == 0) return;
-
-            switch (op) {
-                case 1:
-                    coreService.borrowBook(InputController.getString("Member ID: "), InputController.getString("Book ID: "));
-                    break;
-                case 2:
-                    String txId = InputController.getString("Transaction ID: ");
-                    double cash = InputController.getDouble(" upfront fine cash paid: ");
-                    coreService.returnBook(txId, cash);
-                    break;
-                case 3: txRepo.displayRawTransactions(); break;
-            }
-            UIRender.pauseEnter();
-        }
-    }
-
-    private static void reportCliLoop() {
-        while (true) {
-            UIRender.clearScreen();
-            String[] ops = {"View Individual Member Borrow History Logs", "View Overdue Alert Reports", "View Debt Financial Status", "View Popular Books Tractions"};
-            UIRender.renderMenu("Reporting, Auditing & Data Join Engine", ops);
-            int op = InputController.getInt("Select: ");
-            if (op == 0) return;
-
-            switch (op) {
-                case 1: reportEngine.displayMemberHistory(InputController.getString("Member ID: ")); break;
-                case 2: reportEngine.displayOverdueTransactions(); break;
-                case 3: reportEngine.displayMembersInDebt(); break;
-                case 4: reportEngine.displayPopularBooks(); break;
-            }
-            UIRender.pauseEnter();
-        }
-    }
-
-    public static void seedData() {
-        UIRender.renderHeader("SYSTEM DATA SEEDING INITIALIZATION");
-
-        // 1. Khởi tạo và nạp danh sách Sách mẫu (BOKxxxxx)
-        Book b1 = new Book("BOK00001", "Clean Code", "Robert C. Martin", "Technology", 2008, 3, 120000);
-        Book b2 = new Book("BOK00002", "Effective Java", "Joshua Bloch", "Technology", 2018, 2, 150000);
-        Book b3 = new Book("BOK00003", "Design Patterns", "Gang of Four", "Software Engineering", 1994, 1, 200000);
-
-        bookRepo.add(b1);
-        bookRepo.add(b2);
-        bookRepo.add(b3);
-
-        // 2. Khởi tạo và nạp danh sách Thành viên mẫu (MEMxxxxx)
-        Member m1 = new Member("MEM00001", "Alice Nguyen", "alice@gmail.com", "0901234567", 3);
-        Member m2 = new Member("MEM00002", "Bob Tran", "bob@gmail.com", "0987654321", 2);
-
-        memberRepo.addMember(m1);
-        memberRepo.addMember(m2);
-
-        // 3. Khởi tạo và nạp danh sách Giao dịch mẫu (BTSxxxxx)
-        // Vì kiến trúc mới quy định BorrowTransaction lưu reference bằng ID chuỗi, ta chèn trực tiếp:
-        java.time.LocalDate today = java.time.LocalDate.now();
-
-        // Giao dịch 1: Alice mượn sách Clean Code (Hạn 14 ngày)
-        BorrowTransaction tx1 = new BorrowTransaction("BTS00001", "BOK00001", "MEM00001", today, today.plusDays(14));
-        txRepo.addTransaction(tx1);
-        m1.getTransactionIds().add(tx1.getId()); // Append ID vào hồ sơ Member
-        b1.setRealtimeQuantity(b1.getRealtimeQuantity() - 1); // Trừ kho vật lý
-        m1.setMaxBorrowLimit(m1.getMaxBorrowLimit() - 1);     // Trừ slot mượn của Member
-
-        // Giao dịch 2: Bob mượn sách Effective Java (Hạn 14 ngày)
-        BorrowTransaction tx2 = new BorrowTransaction("BTS00002", "BOK00002", "MEM00002", today, today.plusDays(14));
-        txRepo.addTransaction(tx2);
-        m2.getTransactionIds().add(tx2.getId()); // Append ID vào hồ sơ Member
-        b2.setRealtimeQuantity(b2.getRealtimeQuantity() - 1); // Trừ kho vật lý
-        m2.setMaxBorrowLimit(m2.getMaxBorrowLimit() - 1);     // Trừ slot mượn của Member
-
-        System.out.println("[SUCCESS] Hardcoded seed data successfully injected into RAM repositories.");
-
-        // Xuất bảng kiểm tra trạng thái sau khi seed
-        bookRepo.displayAllBooks();
-        memberRepo.displayAllMembers();
-        txRepo.displayRawTransactions();
-
-        UIRender.pauseEnter("Press Enter to deploy main dashboard console...");
+        Main app = new Main();
+        app.seedData();
+        app.runMenu();
     }
 }

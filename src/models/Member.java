@@ -1,40 +1,38 @@
 package models;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+import utilities.UIRender;
 
 public class Member {
-    private final String id;
+    private String memberId;
     private String name;
+    private String phone;
     private String email;
-    private String phoneNumber;
-    private int maxBorrowLimit;
-    private double fineMoney; // Tiền phạt tích lũy, mặc định = 0
-    private List<String> transactionIds; // Chỉ lưu ID tham chiếu, append-only
+    private int borrowedCount;
 
-    public Member(String id, String name, String email, String phoneNumber, int maxBorrowLimit) {
-        this.id = id;
-        this.name = name;
-        this.email = email;
-        this.phoneNumber = phoneNumber;
-        this.maxBorrowLimit = maxBorrowLimit;
-        this.fineMoney = 0.0;
-        this.transactionIds = new ArrayList<>();
+    public Member(String memberId, String name, String phone, String email) {
+        this.memberId = (memberId == null || memberId.trim().isEmpty()) ? "UNKNOWN_MEM" : memberId.trim();
+        this.name = (name == null || name.trim().isEmpty()) ? "Unknown Member" : name.trim();
+        this.phone = (phone == null || phone.trim().isEmpty()) ? "N/A" : phone.trim();
+        this.email = (email == null || email.trim().isEmpty()) ? "N/A" : email.trim();
+        this.borrowedCount = 0; // Ban đầu đăng ký chưa mượn sách nào
+    }
+
+    public int getBorrowLimit() {
+        return 3; // Luật Milestone 1: Giới hạn mượn mặc định là 3
     }
 
     // Getters and Setters
-    public String getId() { return id; }
+    public String getMemberId() { return memberId; }
     public String getName() { return name; }
-    public void setName(String name) { this.name = name; }
+    public String getPhone() { return phone; }
     public String getEmail() { return email; }
-    public void setEmail(String email) { this.email = email; }
-    public String getPhoneNumber() { return phoneNumber; }
-    public void setPhoneNumber(String phoneNumber) { this.phoneNumber = phoneNumber; }
-    public int getMaxBorrowLimit() { return maxBorrowLimit; }
-    public void setMaxBorrowLimit(int maxBorrowLimit) { this.maxBorrowLimit = maxBorrowLimit; }
-    public double getFineMoney() { return fineMoney; }
-    public void setFineMoney(double fineMoney) { this.fineMoney = fineMoney; }
-    public List<String> getTransactionIds() { return transactionIds; }
-    public void setTransactionIds(List<String> transactionIds) { this.transactionIds = transactionIds; }
+    public int getBorrowedCount() { return borrowedCount; }
+
+    public void setBorrowedCount(int borrowedCount) {
+        if (borrowedCount >= 0) {
+            this.borrowedCount = borrowedCount;
+        } else {
+            UIRender.renderError("Borrowed count cannot be negative!");
+        }
+    }
 }

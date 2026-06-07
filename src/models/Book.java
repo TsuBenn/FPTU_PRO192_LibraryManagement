@@ -1,42 +1,43 @@
 package models;
 
-import java.util.UUID;
+import utilities.UIRender;
 
 public class Book {
-    private final String id;
+    private String bookId;
     private String title;
     private String author;
     private String genre;
-    private int publishYear;
-    private int maximumQuantity;
-    private int realtimeQuantity;
-    private double price;
+    private int pubYear;
+    private int quantity;
 
-    public Book(String id, String title, String author, String genre, int publishYear, int maximumQuantity, double price) {
-        this.id = id;
-        this.title = title;
-        this.author = author;
-        this.genre = genre;
-        this.publishYear = publishYear;
-        this.maximumQuantity = maximumQuantity;
-        this.realtimeQuantity = maximumQuantity;
-        this.price = price;
+    public Book(String bookId, String title, String author, String genre, int pubYear, int quantity) {
+        // Xác thực không cho phép dữ liệu trống
+        this.bookId = (bookId == null || bookId.trim().isEmpty()) ? "UNKNOWN_BOK" : bookId.trim();
+        this.title = (title == null || title.trim().isEmpty()) ? "Untitled" : title.trim();
+        this.author = (author == null || author.trim().isEmpty()) ? "Unknown Author" : author.trim();
+        this.genre = (genre == null || genre.trim().isEmpty()) ? "General" : genre.trim();
+
+        // Xác thực năm xuất bản (Không lớn hơn năm hiện tại 2026 và không âm)
+        this.pubYear = (pubYear > 2026 || pubYear < 0) ? 2026 : pubYear;
+
+        // Xác thực số lượng không được âm
+        this.quantity = (quantity < 0) ? 0 : quantity;
     }
 
-    // Getters and Setters
-    public String getId() { return id; }
+    // Getters
+    public String getBookId() { return bookId; }
     public String getTitle() { return title; }
-    public void setTitle(String title) { this.title = title; }
     public String getAuthor() { return author; }
-    public void setAuthor(String author) { this.author = author; }
     public String getGenre() { return genre; }
-    public void setGenre(String genre) { this.genre = genre; }
-    public int getPublishYear() { return publishYear; }
-    public void setPublishYear(int publishYear) { this.publishYear = publishYear; }
-    public int getMaximumQuantity() { return maximumQuantity; }
-    public void setMaximumQuantity(int maximumQuantity) { this.maximumQuantity = maximumQuantity; }
-    public int getRealtimeQuantity() { return realtimeQuantity; }
-    public void setRealtimeQuantity(int realtimeQuantity) { this.realtimeQuantity = realtimeQuantity; }
-    public double getPrice() { return price; }
-    public void setPrice(double price) { this.price = price; }
+    public int getPubYear() { return pubYear; }
+    public int getQuantity() { return quantity; }
+
+    // Setter có chốt chặn kiểm tra giá trị âm
+    public void setQuantity(int quantity) {
+        if (quantity >= 0) {
+            this.quantity = quantity;
+        } else {
+            UIRender.renderError("Quantity cannot be negative!");
+        }
+    }
 }
