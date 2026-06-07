@@ -29,7 +29,7 @@ public class InputController {
                 return Integer.parseInt(input);
             }
             UIRender.renderError(errorMessage);
-            clearMess(7);
+            clearMess(6);
         }
     } 
 
@@ -46,7 +46,7 @@ public class InputController {
                 return Double.parseDouble(input);
             }
             UIRender.renderError(errorMessage);
-            clearMess(7);
+            clearMess(6);
         }
     } 
 
@@ -68,7 +68,7 @@ public class InputController {
                 return LocalDate.of(year, month, day);
             }
             UIRender.renderError(errorMessage);
-            clearMess(9);
+            clearMess(8);
         }
     } 
 

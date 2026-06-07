@@ -9,16 +9,13 @@ public class UIRender {
     private static final String BORDER_LINE = "==================================================";
     private static final String DIVIDER_LINE = "--------------------------------------------------";
 
-    private static String repeat(String baseString, int number) {
-        StringBuilder builder = new StringBuilder(baseString);
-        for (int i = 0; i < number; i++)
-            builder.append(baseString);
-        return builder.toString();
-    }
-
     public static void renderHeader(String title) {
         System.out.println("\n" + BORDER_LINE);
-        System.out.println(repeat(" ", (BORDER_LINE.length() - title.length())/2) + title.toUpperCase());
+
+        int paddingSpaces = (BORDER_LINE.length() - title.length()) / 2;
+        int totalWidth = paddingSpaces + title.length();
+        System.out.printf("%" + totalWidth + "s\n", title.toUpperCase());
+
         System.out.println(BORDER_LINE);
     }
 
@@ -27,9 +24,9 @@ public class UIRender {
         Usage:
 
         String[] mainMenuOptions = {
-            "Book Management",
-            "Member Management",
-            "Transactions",
+            "Book Management", 
+            "Member Management", 
+            "Transactions", 
             "Reports"
         };
 
@@ -71,7 +68,7 @@ public class UIRender {
             colWidths[i] = headers[i].length();
         }
 
-        // Automatically expand the column's width if the content is too long
+        // Automatically expand the collumn's width if the content is too long
         for (String[] row : rows) {
             for (int i = 0; i < row.length; i++) {
                 if (i < colWidths.length && row[i] != null) {
@@ -82,7 +79,10 @@ public class UIRender {
 
         StringBuilder dividerSB = new StringBuilder("+"); // StringBuilder for mutable String
         for (int width : colWidths) {
-            dividerSB.append(repeat("-", width + 2)).append("+");
+            for (int i = 0; i < width + 2; i++) {
+                dividerSB.append("-");
+            }
+            dividerSB.append("+");
         }
         String divider = dividerSB.toString();
 
