@@ -1,6 +1,5 @@
 package models;
 
-import sun.plugin2.message.RemoteCAContextIdMessage;
 import utilities.IDManager;
 
 public class Member {
