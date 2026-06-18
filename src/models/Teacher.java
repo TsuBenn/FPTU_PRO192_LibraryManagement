@@ -1,4 +1,8 @@
 package models;
 
-public class TeacherMember extends PremiumMember{
+public class Teacher extends PremiumMember {
+    public Teacher(String name, String phone, String email) {
+        super(name, phone, email);
+        this.setCurrentBorrowLimit(10);
+    }
 }

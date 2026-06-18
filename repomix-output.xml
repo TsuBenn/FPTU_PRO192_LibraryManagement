@@ -40,1059 +40,2573 @@ The content is organized as follows:
 </file_summary>
 
 <directory_structure>
-controllers/
-  LibraryController.java
-managers/
-  BookManager.java
-  BorrowTransactionManager.java
-  MemberManager.java
-models/
-  Book.java
-  BorrowTransaction.java
-  Member.java
-tests/
-  UtilitiesTest.java
-utilities/
-  IDManager.java
-  Input.java
-  UIRender.java
-  Validator.java
-Main.java
+.gitignore
+build.xml
+FPTU_PRO192_LibraryManagement.iml
+nbproject/build-impl.xml
+nbproject/genfiles.properties
+nbproject/project.properties
+nbproject/project.xml
+src/controllers/LibraryController.java
+src/Main.java
+src/models/Book.java
+src/models/BorrowTransaction.java
+src/models/Member.java
+src/repositories/BookRepository.java
+src/repositories/BorrowTransactionRepository.java
+src/repositories/MemberRepository.java
+src/services/BookService.java
+src/services/BorrowPolicy.java
+src/services/BorrowTransactionService.java
+src/services/MemberService.java
+src/services/ReportService.java
+src/utilities/IDManager.java
+src/utilities/InputController.java
+src/utilities/UIRender.java
+src/utilities/Validator.java
 </directory_structure>
 
 <files>
 This section contains the contents of the repository's files.
 
-<file path="controllers/LibraryController.java">
-package controllers;
+<file path="src/repositories/BookRepository.java">
+package repositories;
 
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
-import managers.BookManager;
-import managers.MemberManager;
-import managers.BorrowTransactionManager;
 import models.Book;
-import models.Member;
-import models.BorrowTransaction;
-import utilities.Input;
-import utilities.UIRender;
-import utilities.Validator;
-import utilities.IDManager;
 
-public class LibraryController {
-    private BookManager bookManager;
-    private MemberManager memberManager;
-    private BorrowTransactionManager txManager;
+public class BookRepository {
+    private final List<Book> database = new ArrayList<>();
 
-    public LibraryController() {
-        this.bookManager = new BookManager();
-        this.memberManager = new MemberManager();
-        this.txManager = new BorrowTransactionManager(bookManager, memberManager);
-        seedData();
+    public void save(Book book) {
+        database.add(book);
     }
 
-    public void start() {
-        boolean running = true;
-        String[] mainOptions = {
-            "Book Management",
-            "Member Management",
-            "Borrow a Book",
-            "Return a Book"
-        };
+    public void delete(Book book) {
+        database.remove(book);
+    }
 
-        while (running) {
-            UIRender.clearScreen();
-            UIRender.renderMenu("Library Main Menu", mainOptions);
-
-            int choice = Input.getInt("Select an option: ");
-            switch (choice) {
-                case 1: handleBookMenu(); break;
-                case 2: handleMemberMenu(); break;
-                case 3: handleBorrowWorkflow(); break;
-                case 4: handleReturnWorkflow(); break;
-                case 0: running = false; break;
-                default: 
-                UIRender.renderError("Invalid option!");
-                UIRender.pauseEnter();
-            }
+    public void update(Book oldBook, Book newBook) {
+        int index = database.indexOf(oldBook);
+        if (index != -1) {
+            database.set(index, newBook);
         }
     }
 
-    private void handleBookMenu() {
-        boolean inMenu = true;
-        String[] bookOptions = { "Add Book", "View All Books" };
-
-        while (inMenu) {
-            UIRender.clearScreen();
-            UIRender.renderMenu("Book Management", bookOptions);
-            int choice = Input.getInt("Select: ");
-
-            if (choice == 1) {
-                UIRender.clearScreen();
-                UIRender.renderHeader("Add New Book");
-                String id = IDManager.generateBookID();
-                System.out.println("Generated Book ID: " + id);
-
-                String title = Input.getString("Enter Title: ");
-                String author = Input.getString("Enter Author: ");
-                String genre = Input.getString("Enter Genre: ");
-                int year = Input.getInt("Enter Publication Year: ");
-                int qty = Input.getInt("Enter Total Quantity: ");
-
-                Book book = new Book(id, title, author, genre, year, qty);
-                if (bookManager.addBook(book)) {
-                    UIRender.renderSuccess("Book added successfully!");
-                } else {
-                    UIRender.renderError("Failed to add book.");
-                }
-                UIRender.pauseEnter();
-            } else if (choice == 2) {
-                UIRender.clearScreen();
-                UIRender.renderHeader("Book Database Registry");
-
-                List<Book> books = bookManager.getAllBooks();
-                String[] headers = {"ID", "Title", "Author", "Genre", "Year", "Available", "Total"};
-                List<String[]> tableData = new ArrayList<>();
-
-                for (Book b : books) {
-                    tableData.add(new String[] {
-                        b.getId(), b.getTitle(), b.getAuthor(), b.getGenre(),
-                        String.valueOf(b.getPublicationYear()),
-                        String.valueOf(b.getAvailableQuantity()),
-                        String.valueOf(b.getTotalQuantity())
-                    });
-                }
-
-                UIRender.renderTable(headers, tableData);
-                UIRender.pauseEnter();
-            } else if (choice == 0) {
-                inMenu = false;
-            } else {
-                UIRender.renderError("Invalid Option!");
-                UIRender.pauseEnter();
-            }
-        }
+    public List<Book> findAll() {
+        return database;
     }
 
-    private void handleMemberMenu() {
-        boolean inMenu = true;
-        String[] memberOptions = { "Register Member", "View All Members" };
-
-        while (inMenu) {
-            UIRender.clearScreen();
-            UIRender.renderMenu("Member Management", memberOptions);
-            int choice = Input.getInt("Select: ");
-
-            if (choice == 1) {
-                UIRender.clearScreen();
-                UIRender.renderHeader("Register New Member");
-                String id = IDManager.generateMemberID();
-                System.out.println("Generated Member ID: " + id);
-
-                String name = Input.getString("Enter Name: ");
-                String phone = Input.getString("Enter Phone (10 digits): ");
-                String email = Input.getString("Enter Email: ");
-
-                if (!Validator.isValidPhone(phone) || !Validator.isValidEmail(email)) {
-                    UIRender.renderError("Invalid contact details format!");
-                    UIRender.pauseEnter();
-                    continue;
-                }
-
-                Member m = new Member(id, name, phone, email);
-                if (memberManager.addMember(m)) {
-                    UIRender.renderSuccess("Member registered successfully!");
-                } else {
-                    UIRender.renderError("Failed to register member.");
-                }
-                UIRender.pauseEnter();
-            } else if (choice == 2) {
-                UIRender.clearScreen();
-                UIRender.renderHeader("Member Database Registry");
-
-                List<Member> members = memberManager.getAllMembers();
-                String[] headers = {"ID", "Name", "Phone Number", "Email Address"};
-                List<String[]> tableData = new ArrayList<>();
-
-                for (Member m : members) {
-                    tableData.add(new String[] { m.getId(), m.getName(), m.getPhone(), m.getEmail() });
-                }
-
-                UIRender.renderTable(headers, tableData);
-                UIRender.pauseEnter();
-            } else if (choice == 0) {
-                inMenu = false;
-            } else {
-                UIRender.renderError("Invalid Option!");
-                UIRender.pauseEnter();
-            }
-        }
-    }
-
-    private void handleBorrowWorkflow() {
-        UIRender.clearScreen();
-        UIRender.renderHeader("Borrow Workflow: Select Member");
-        String mQuery = Input.getString("Enter Member Name or ID to search: ");
-        List<Member> matchedMembers = memberManager.searchMembers(mQuery);
-
-        if (matchedMembers.isEmpty()) {
-            UIRender.renderError("No matching members found.");
-            UIRender.pauseEnter();
-            return;
-        }
-
-        String[] memberHeaders = {"Index", "ID", "Name"};
-        List<String[]> memberTable = new ArrayList<>();
-        for (int i = 0; i < matchedMembers.size(); i++) {
-            Member m = matchedMembers.get(i);
-            memberTable.add(new String[] { String.valueOf(i + 1), m.getId(), m.getName() });
-        }
-        UIRender.renderTable(memberHeaders, memberTable);
-
-        int mIdx = Input.getInt("Select member index: ") - 1;
-        if (mIdx < 0 || mIdx >= matchedMembers.size()) return;
-        Member member = matchedMembers.get(mIdx);
-
-        System.out.println("\n");
-        UIRender.renderHeader("Borrow Workflow: Select Book");
-        String bQuery = Input.getString("Enter Book Title, Author or ID to search: ");
-        List<Book> matchedBooks = bookManager.searchBooks(bQuery);
-
-        if (matchedBooks.isEmpty()) {
-            UIRender.renderError("No matching books found.");
-            UIRender.pauseEnter();
-            return;
-        }
-
-        String[] bookHeaders = {"Index", "ID", "Title", "Author", "Available"};
-        List<String[]> bookTable = new ArrayList<>();
-        for (int i = 0; i < matchedBooks.size(); i++) {
-            Book b = matchedBooks.get(i);
-            bookTable.add(new String[] { String.valueOf(i + 1), b.getId(), b.getTitle(), b.getAuthor(), String.valueOf(b.getAvailableQuantity()) });
-        }
-        UIRender.renderTable(bookHeaders, bookTable);
-
-        int bIdx = Input.getInt("Select book index: ") - 1;
-        if (bIdx < 0 || bIdx >= matchedBooks.size()) return;
-        Book book = matchedBooks.get(bIdx);
-
-        System.out.println("\n");
-        LocalDate borrowDate = Input.getDate("--- Borrow Workflow: Loan Date Processing ---");
-
-        String generatedTxId = IDManager.generateTransactionID();
-        boolean success = txManager.borrowBook(generatedTxId, member.getId(), book.getId(), borrowDate);
-        if (success) {
-            UIRender.renderSuccess("ID: " + generatedTxId + " | Book '" + book.getTitle() + "' successfully assigned to " + member.getName());
-        } else {
-            UIRender.renderError("Transaction Rejected! System validation constraints triggered.");
-        }
-        UIRender.pauseEnter();
-    }
-
-    private void handleReturnWorkflow() {
-        UIRender.clearScreen();
-        UIRender.renderHeader("Return Workflow: Select Member");
-
-        // Step 1: Search and Select the Member
-        String mQuery = Input.getString("Enter Member Name or ID to search: ");
-        List<Member> matchedMembers = memberManager.searchMembers(mQuery);
-
-        if (matchedMembers.isEmpty()) {
-            UIRender.renderError("No matching members found.");
-            UIRender.pauseEnter();
-            return;
-        }
-
-        String[] memberHeaders = {"Index", "ID", "Name"};
-        List<String[]> memberTable = new ArrayList<>();
-        for (int i = 0; i < matchedMembers.size(); i++) {
-            Member m = matchedMembers.get(i);
-            memberTable.add(new String[] { String.valueOf(i + 1), m.getId(), m.getName() });
-        }
-        UIRender.renderTable(memberHeaders, memberTable);
-
-        int mIdx = Input.getInt("Select member index: ") - 1;
-        if (mIdx < 0 || mIdx >= matchedMembers.size()) return;
-        Member member = matchedMembers.get(mIdx);
-
-        // Step 2: Fetch and Display ONLY Active Loans for this Member
-        System.out.println("\n");
-        UIRender.renderHeader("Active Loans for " + member.getName());
-        List<BorrowTransaction> activeLoans = txManager.getActiveTransactionsByMember(member.getId());
-
-        if (activeLoans.isEmpty()) {
-            UIRender.renderError("This member currently has no outstanding books checked out.");
-            UIRender.pauseEnter();
-            return;
-        }
-
-        String[] loanHeaders = {"Index", "Book ID", "Book Title", "Borrow Date", "Due Date"};
-        List<String[]> loanTable = new ArrayList<>();
-        for (int i = 0; i < activeLoans.size(); i++) {
-            BorrowTransaction tx = activeLoans.get(i);
-            // Cross-reference the Book ID with the BookManager to print the actual Title
-            Book book = bookManager.findBookById(tx.getBookId());
-            String title = (book != null) ? book.getTitle() : "Unknown Asset";
-
-            loanTable.add(new String[] {
-                String.valueOf(i + 1),
-                tx.getBookId(),
-                title,
-                tx.getBorrowDate().toString(),
-                tx.getDueDate().toString()
-            });
-        }
-        UIRender.renderTable(loanHeaders, loanTable);
-
-        int lIdx = Input.getInt("Select book index to return: ") - 1;
-        if (lIdx < 0 || lIdx >= activeLoans.size()) return;
-        BorrowTransaction targetTx = activeLoans.get(lIdx);
-
-        // Step 3: Date Handling Logic (Your flexible days-kept shortcut configuration)
-        System.out.println("\n");
-        UIRender.renderHeader("Processing Return for: " + bookManager.findBookById(targetTx.getBookId()).getTitle());
-        LocalDate borrowDate = targetTx.getBorrowDate();
-        LocalDate returnDate = null;
-
-        System.out.println("Return Tracking Configuration Options:");
-        System.out.println("  [1] Enter a specific calendar date");
-        System.out.println("  [2] Enter total days kept (Relative to borrow date)");
-        int returnChoice = Input.getInt("Select option: ");
-
-        if (returnChoice == 1) {
-            System.out.println("\n");
-            returnDate = Input.getDate("--- Enter Actual Return Date ---");
-        } else if (returnChoice == 2) {
-            System.out.println("\nAsset was checked out on: " + borrowDate);
-            int daysKept = Input.getInt("Enter number of days the member kept the book: ");
-            if (daysKept < 0) {
-                UIRender.renderError("Days kept cannot be negative!");
-                UIRender.pauseEnter();
-                return;
-            }
-            returnDate = borrowDate.plusDays(daysKept);
-        } else {
-            UIRender.renderError("Invalid option selected!");
-            UIRender.pauseEnter();
-            return;
-        }
-
-        // Step 4: Chronological Safety Check
-        if (returnDate.isBefore(borrowDate)) {
-            UIRender.renderError("Chronological Error: Return date (" + returnDate + 
-                ") cannot sit behind borrow date (" + borrowDate + ").");
-            UIRender.pauseEnter();
-            return;
-        }
-
-        // Step 5: Execute via safe concrete IDs pulled straight from our selection
-        double fine = txManager.returnBook(member.getId(), targetTx.getBookId(), returnDate);
-        if (fine > 0) {
-            UIRender.renderSuccess("Item returned successfully!");
-            System.out.printf(">>> LATE RETURN PENALTY FEE DUE: %,.0f VND\n", fine);
-        } else {
-            UIRender.renderSuccess("Item returned on schedule. Zero balance fines.");
-        }
-        UIRender.pauseEnter();
-    }
-
-    private void seedData() {
-        bookManager.addBook(new Book(IDManager.generateBookID(), "The Great Gatsby", "F. Scott Fitzgerald", "Classic", 1925, 5));
-        bookManager.addBook(new Book(IDManager.generateBookID(), "1984", "George Orwell", "Dystopian", 1949, 3));
-        memberManager.addMember(new Member(IDManager.generateMemberID(), "Benn", "0123456789", "benn@uni.edu.vn"));
+    public Book findById(String id) {
+        return database.stream()
+                .filter(b -> b.getId().equalsIgnoreCase(id.trim()))
+                .findFirst()
+                .orElse(null);
     }
 }
 </file>
 
-<file path="managers/BookManager.java">
-package managers;
+<file path="src/repositories/BorrowTransactionRepository.java">
+package repositories;
 
 import java.util.ArrayList;
 import java.util.List;
-import models.Book;
+import models.BorrowTransaction;
 
-public class BookManager {
+public class BorrowTransactionRepository {
+    private final List<BorrowTransaction> database = new ArrayList<>();
 
-    private List<Book> books;
-
-    public BookManager() {
-        this.books = new ArrayList<>();
+    public void save(BorrowTransaction tx) {
+        database.add(tx);
     }
 
-    public boolean addBook(Book book) {
-        if (findBookById(book.getId()) != null) return false;
-        books.add(book);
+    public List<BorrowTransaction> findAll() {
+        return database;
+    }
+}
+</file>
+
+<file path="src/repositories/MemberRepository.java">
+package repositories;
+
+import java.util.ArrayList;
+import java.util.List;
+import models.Member;
+
+public class MemberRepository {
+    private final List<Member> database = new ArrayList<>();
+
+    public void save(Member member) {
+        database.add(member);
+    }
+
+    public void delete(Member member) {
+        database.remove(member);
+    }
+
+    public void update(Member oldMember, Member newMember) {
+        int index = database.indexOf(oldMember);
+        if (index != -1) {
+            database.set(index, newMember);
+        }
+    }
+
+    public List<Member> findAll() {
+        return database;
+    }
+
+    public Member findById(String id) {
+        return database.stream()
+                .filter(m -> m.getId().equalsIgnoreCase(id.trim()))
+                .findFirst()
+                .orElse(null);
+    }
+}
+</file>
+
+<file path="src/services/BookService.java">
+package services;
+
+import java.util.List;
+import java.util.stream.Collectors;
+import models.Book;
+import repositories.BookRepository;
+import utilities.InputController;
+import utilities.UIRender;
+
+public class BookService {
+    private final BookRepository bookRepository;
+
+    public BookService(BookRepository bookRepository) {
+        this.bookRepository = bookRepository;
+    }
+
+    public boolean registerBook(Book book) {
+        if (bookRepository.findById(book.getId()) != null) return false;
+        if (isDuplicate(book.getTitle(), book.getAuthor()) || book.getTitle().isEmpty() || book.getAuthor().isEmpty()) {
+            return false;
+        }
+        bookRepository.save(book);
         return true;
     }
 
-    public Book findBookById(String id) {
-        for (Book b : books) {
-            if (b.getId().equalsIgnoreCase(id.trim())) return b;
+    public boolean updateBook(Book oldBook, Book newBook) {
+        if (oldBook == null || newBook == null) return false;
+        int activeLoans = oldBook.getTotalQuantity() - oldBook.getAvailableQuantity();
+        if (newBook.getTotalQuantity() < activeLoans) {
+            return false; // Dynamic business verification inside service
         }
-        return null;
+        bookRepository.update(oldBook, newBook);
+        return true;
     }
 
-    public List<Book> searchBooks(String query) {
-        List<Book> matches = new ArrayList<>();
-        String lowerQuery = query.toLowerCase().trim();
-        for (Book b : books) {
-            if (b.getId().toLowerCase().contains(lowerQuery) ||
-                b.getTitle().toLowerCase().contains(lowerQuery) ||
-                b.getAuthor().toLowerCase().contains(lowerQuery) ||
-                b.getGenre().toLowerCase().contains(lowerQuery)) {
-                matches.add(b);
-            }
-        }
-        return matches;
+    private boolean isDuplicate(String title, String author) {
+        return bookRepository.findAll().stream()
+                .anyMatch(b -> b.getTitle().equalsIgnoreCase(title.trim()) && b.getAuthor().equalsIgnoreCase(author.trim()));
     }
 
-    public List<Book> getAllBooks() { return books; }
+    public List<Book> getAllBooks() {
+        return bookRepository.findAll();
+    }
 
+    public Book getBookById(String id) {
+        return bookRepository.findById(id);
+    }
+
+    public static Book searchAndSelectBook(BookRepository repository) {
+        String query = InputController.getString("Enter Book Search Filter Criteria (Title/ID/Author): ");
+        List<Book> matches = repository.findAll().stream()
+                .filter(b -> b.getId().toLowerCase().contains(query.toLowerCase()) ||
+                        b.getTitle().toLowerCase().contains(query.toLowerCase()) ||
+                        b.getAuthor().toLowerCase().contains(query.toLowerCase()))
+                .collect(Collectors.toList());
+
+        if (matches.isEmpty()) {
+            UIRender.renderError("No matching book records located.");
+            UIRender.pauseEnter();
+            return null;
+        }
+
+        UIRender.renderBookContentTable(matches);
+        return matches.get(0);
+    }
 }
 </file>
 
-<file path="managers/BorrowTransactionManager.java">
-package managers;
+<file path="src/services/BorrowPolicy.java">
+package services;
+
+import models.Book;
+import models.BorrowTransaction;
+import models.Member;
+
+public interface BorrowPolicy {
+    boolean isEligibleToBorrow(Member member, Book book);
+    double calculateFine(BorrowTransaction borrowTransaction);
+    void reportMissing(BorrowTransaction borrowTransaction, Book book);
+}
+</file>
+
+<file path="src/services/BorrowTransactionService.java">
+package services;
 
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
+import java.util.stream.Collectors;
+import models.Book;
+import models.BorrowTransaction;
+import repositories.BorrowTransactionRepository;
+
+public class BorrowTransactionService {
+    private final BorrowTransactionRepository txRepository;
+    private static final double FINE_PER_DAY = 5000.0;
+
+    public BorrowTransactionService(BorrowTransactionRepository txRepository) {
+        this.txRepository = txRepository;
+    }
+
+    public List<BorrowTransaction> getAllTransactions() {
+        return txRepository.findAll();
+    }
+
+    public List<BorrowTransaction> getActiveLoansByMember(String memberId) {
+        return txRepository.findAll().stream()
+                .filter(tx -> tx.getMemberId().equalsIgnoreCase(memberId) && tx.getReturnDate() == null)
+                .collect(Collectors.toList());
+    }
+
+    public int countActiveLoans(String memberId) {
+        return getActiveLoansByMember(memberId).size();
+    }
+
+    public boolean isBookBorrowedByMember(String memberId, String bookId) {
+        return txRepository.findAll().stream()
+                .anyMatch(tx -> tx.getMemberId().equalsIgnoreCase(memberId) &&
+                        tx.getBookId().equalsIgnoreCase(bookId) &&
+                        tx.getReturnDate() == null);
+    }
+
+    public void executeCheckout(BorrowTransaction tx, Book book) {
+        txRepository.save(tx);
+        book.setAvailableQuantity(book.getAvailableQuantity() - 1);
+    }
+
+    /**
+     * Complete Business Logic Calculation wrapper for regular returning process.
+     */
+    public double processReturn(BorrowTransaction tx, Book book, LocalDate returnDate) {
+        tx.setReturnDate(returnDate);
+        if (book != null) {
+            book.setAvailableQuantity(book.getAvailableQuantity() + 1);
+        }
+        long overdueDays = ChronoUnit.DAYS.between(tx.getDueDate(), returnDate);
+        double charge = 0.0;
+        if (overdueDays > 0) {
+            charge = overdueDays * FINE_PER_DAY;
+            tx.setFinePaid(charge);
+        }
+        return charge;
+    }
+
+    /**
+     * Complete Business Logic Wrap for the lost book configuration event.
+     * Returns an array containing [replacementCost, latePenaltyFine, totalInvoiceBill]
+     */
+    public double[] processLostBook(BorrowTransaction tx, Book book, double replacementCost) {
+        tx.setReturnDate(LocalDate.now());
+
+        long lateDays = ChronoUnit.DAYS.between(tx.getDueDate(), LocalDate.now());
+        double penaltyFine = lateDays > 0 ? lateDays * FINE_PER_DAY : 0.0;
+        double totalBill = replacementCost + penaltyFine;
+
+        tx.setFinePaid(totalBill);
+
+        if (book != null) {
+            // Permanently shrink library total capability volume
+            book.setTotalQuantity(book.getTotalQuantity() - 1);
+        }
+
+        return new double[]{replacementCost, penaltyFine, totalBill};
+    }
+}
+</file>
+
+<file path="src/services/MemberService.java">
+package services;
+
+import java.util.List;
+import java.util.stream.Collectors;
+import models.Member;
+import repositories.MemberRepository;
+import utilities.InputController;
+import utilities.UIRender;
+
+public class MemberService {
+    private final MemberRepository memberRepository;
+
+    public MemberService(MemberRepository memberRepository) {
+        this.memberRepository = memberRepository;
+    }
+
+    public boolean registerMember(Member member) {
+        if (memberRepository.findById(member.getId()) != null) return false;
+        if (isContactDuplicate(member.getPhone(), member.getEmail())) return false;
+        memberRepository.save(member);
+        return true;
+    }
+
+    public boolean updateMember(Member oldMember, Member newMember) {
+        if (oldMember == null || newMember == null) return false;
+        memberRepository.update(oldMember, newMember);
+        return true;
+    }
+
+    private boolean isContactDuplicate(String phone, String email) {
+        return memberRepository.findAll().stream()
+                .anyMatch(m -> m.getPhone().trim().equals(phone.trim()) || m.getEmail().equalsIgnoreCase(email.trim()));
+    }
+
+    public List<Member> getAllMembers() {
+        return memberRepository.findAll();
+    }
+
+    public Member getMemberById(String id) {
+        return memberRepository.findById(id);
+    }
+
+    public static Member searchAndSelectMember(MemberRepository repository) {
+        String query = InputController.getString("Enter Member Identity Search Query (Name/ID): ");
+        List<Member> matches = repository.findAll().stream()
+                .filter(m -> m.getId().toLowerCase().contains(query.toLowerCase()) ||
+                        m.getName().toLowerCase().contains(query.toLowerCase()))
+                .collect(Collectors.toList());
+
+        if (matches.isEmpty()) {
+            UIRender.renderError("Zero direct matching member records found.");
+            UIRender.pauseEnter();
+            return null;
+        }
+
+        UIRender.renderMemberContentTable(matches);
+        return matches.get(0);
+    }
+}
+</file>
+
+<file path="src/services/ReportService.java">
+package services;
+
+import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+import models.Book;
+import models.BorrowTransaction;
+import models.Member;
+import repositories.BookRepository;
+
+public class ReportService {
+    private final BookRepository bookRepo;
+    private final BorrowTransactionService transactionService;
+
+    private static final Comparator<BorrowTransaction> RECENCY_COMPARATOR = (a, b) -> {
+        if (a.getReturnDate() != null && b.getReturnDate() != null) return b.getReturnDate().compareTo(a.getReturnDate());
+        if (a.getReturnDate() != null) return -1;
+        if (b.getReturnDate() != null) return 1;
+        return b.getBorrowDate().compareTo(a.getBorrowDate());
+    };
+
+    public ReportService(BookRepository bookRepo, BorrowTransactionService transactionService) {
+        this.bookRepo = bookRepo;
+        this.transactionService = transactionService;
+    }
+
+    public List<BorrowTransaction> getSortedMemberHistory(Member member) {
+        if (member == null) return new ArrayList<>();
+        return transactionService.getAllTransactions().stream()
+                .filter(tx -> tx.getMemberId().equalsIgnoreCase(member.getId()))
+                .sorted(RECENCY_COMPARATOR)
+                .collect(Collectors.toList());
+    }
+
+    public List<BorrowTransaction> getMasterLogSorted() {
+        return transactionService.getAllTransactions().stream()
+                .sorted(RECENCY_COMPARATOR)
+                .collect(Collectors.toList());
+    }
+
+    public List<BorrowTransaction> getOverdueAssets() {
+        LocalDate today = LocalDate.now();
+        return transactionService.getAllTransactions().stream()
+                .filter(tx -> tx.getReturnDate() == null && today.isAfter(tx.getDueDate()))
+                .collect(Collectors.toList());
+    }
+
+    public List<Book> getPopularBooks(int threshold) {
+        int cap = threshold <= 0 ? 5 : threshold;
+        List<Map.Entry<String, Long>> analytics = transactionService.getAllTransactions().stream()
+                .collect(Collectors.groupingBy(BorrowTransaction::getBookId, Collectors.counting()))
+                .entrySet().stream()
+                .sorted((e1, e2) -> e2.getValue().compareTo(e1.getValue()))
+                .limit(cap).collect(Collectors.toList());
+
+        List<Book> popularBooks = new ArrayList<>();
+        for (Map.Entry<String, Long> entry : analytics) {
+            Book b = bookRepo.findById(entry.getKey());
+            if (b != null) popularBooks.add(b);
+        }
+        return popularBooks;
+    }
+}
+</file>
+
+<file path="src/utilities/InputController.java">
+package utilities;
+
+import java.util.Scanner;
+import java.time.LocalDate;
 import java.util.List;
 import models.Book;
 import models.Member;
 import models.BorrowTransaction;
 
-public class BorrowTransactionManager {
-
-    private List<BorrowTransaction> transactions;
-    private BookManager bookManager;
-    private MemberManager memberManager;
-
-    public List<BorrowTransaction> getActiveTransactionsByMember(String memberId) {
-        List<BorrowTransaction> activeLoans = new ArrayList<>();
-        for (BorrowTransaction tx : transactions) {
-            if (tx.getMemberId().equalsIgnoreCase(memberId) && tx.getReturnDate() == null) {
-                activeLoans.add(tx);
-            }
-        }
-        return activeLoans;
-    }
-
-    public BorrowTransactionManager(BookManager bookManager, MemberManager memberManager) {
-        this.transactions = new ArrayList<>();
-        this.bookManager = bookManager;
-        this.memberManager = memberManager;
-    }
-
-    // Add this helper inside BorrowTransactionManager.java
-    public BorrowTransaction getActiveTransaction(String memberId, String bookId) {
-        return findActiveTransaction(memberId, bookId);
-    }
-
-    // --- GUARD CLAUSE PATTERN BORROW ---
-    public boolean borrowBook(String txId, String memberId, String bookId, LocalDate borrowDate) {
-        Member member = memberManager.findMemberById(memberId);
-        if (member == null) return false;
-
-        Book book = bookManager.findBookById(bookId);
-        if (book == null) return false;
-
-        if (book.getAvailableQuantity() <= 0) return false;
-
-        if (countActiveBorrows(memberId) >= member.getBorrowLimit()) return false;
-
-        // Commit execution safely
-        BorrowTransaction tx = new BorrowTransaction(txId, memberId, bookId, borrowDate);
-        transactions.add(tx);
-        book.setAvailableQuantity(book.getAvailableQuantity() - 1);
-        return true;
-    }
-
-    // --- RETURN PROCESS WITH FINE EVALUATION ---
-    public double returnBook(String memberId, String bookId, LocalDate returnDate) {
-        BorrowTransaction activeTx = findActiveTransaction(memberId, bookId);
-        if (activeTx == null) return -1.0; // Indicates transaction wasn't found
-
-        activeTx.setReturnDate(returnDate);
-        Book book = bookManager.findBookById(bookId);
-        if (book != null) {
-            book.setAvailableQuantity(book.getAvailableQuantity() + 1);
-        }
-
-        long daysPastDue = ChronoUnit.DAYS.between(activeTx.getDueDate(), returnDate);
-        double fine = 0.0;
-        if (daysPastDue > 0) {
-            fine = daysPastDue * 5000.0; // 5000 VND / Day
-            activeTx.setFinePaid(fine);
-        }
-        return fine;
-    }
-
-    // --- SAFETY LOCK CHECKS FOR CRUD ---
-    public boolean isBookCurrentlyBorrowed(String bookId) {
-        for (BorrowTransaction tx : transactions) {
-            if (tx.getBookId().equalsIgnoreCase(bookId) && tx.getReturnDate() == null) {
-                return true; 
-            }
-        }
-        return false;
-    }
-
-    public boolean isMemberCurrentlyBorrowing(String memberId) {
-        return countActiveBorrows(memberId) > 0;
-    }
-
-    private int countActiveBorrows(String memberId) {
-        int count = 0;
-        for (BorrowTransaction tx : transactions) {
-            if (tx.getMemberId().equalsIgnoreCase(memberId) && tx.getReturnDate() == null) {
-                count++;
-            }
-        }
-        return count;
-    }
-
-    private BorrowTransaction findActiveTransaction(String memberId, String bookId) {
-        for (BorrowTransaction tx : transactions) {
-            if (tx.getMemberId().equalsIgnoreCase(memberId) && 
-            tx.getBookId().equalsIgnoreCase(bookId) && 
-            tx.getReturnDate() == null) {
-                return tx;
-            }
-        }
-        return null;
-    }
-
-    public List<BorrowTransaction> getTransactions() { return transactions; }
-
-}
-</file>
-
-<file path="managers/MemberManager.java">
-package managers;
-
-import java.util.ArrayList;
-import java.util.List;
-import models.Member;
-
-public class MemberManager {
-
-    private List<Member> members;
-
-    public MemberManager() {
-        this.members = new ArrayList<>();
-    }
-
-    public boolean addMember(Member member) {
-        if (findMemberById(member.getId()) != null) return false;
-        members.add(member);
-        return true;
-    }
-
-    public Member findMemberById(String id) {
-        for (Member m : members) {
-            if (m.getId().equalsIgnoreCase(id.trim())) return m;
-        }
-        return null;
-    }
-
-    public List<Member> searchMembers(String query) {
-        List<Member> matches = new ArrayList<>();
-        String lowerQuery = query.toLowerCase().trim();
-        for (Member m : members) {
-            if (m.getId().toLowerCase().contains(lowerQuery) ||
-                m.getName().toLowerCase().contains(lowerQuery)) {
-                matches.add(m);
-            }
-        }
-        return matches;
-    }
-
-    public List<Member> getAllMembers() { return members; }
-
-}
-</file>
-
-<file path="models/Book.java">
-package models;
-
-public class Book {
-
-    private String id;
-    private String title;
-    private String author;
-    private String genre;
-    private int publicationYear;
-    private int totalQuantity;
-    private int availableQuantity;
-
-    public Book(String id, String title, String author, String genre, int publicationYear, int totalQuantity) {
-        this.id = id;
-        this.title = title;
-        this.author = author;
-        this.genre = genre;
-        this.publicationYear = publicationYear;
-        this.totalQuantity = totalQuantity;
-        this.availableQuantity = totalQuantity; // Initially, all copies are available
-    }
-
-    // Getters and Setters
-    public String getId() { return id; }
-    public String getTitle() { return title; }
-    public void setTitle(String title) { this.title = title; }
-    public String getAuthor() { return author; }
-    public void setAuthor(String author) { this.author = author; }
-    public String getGenre() { return genre; }
-    public void setGenre(String genre) { this.genre = genre; }
-    public int getPublicationYear() { return publicationYear; }
-    public void setPublicationYear(int publicationYear) { this.publicationYear = publicationYear; }
-    public int getTotalQuantity() { return totalQuantity; }
-
-    public void setTotalQuantity(int totalQuantity) { 
-        // Sync available quantity safely when total quantity shifts
-        int borrowedCount = this.totalQuantity - this.availableQuantity;
-        this.totalQuantity = totalQuantity;
-        this.availableQuantity = totalQuantity - borrowedCount;
-    }
-
-    public int getAvailableQuantity() { return availableQuantity; }
-    public void setAvailableQuantity(int availableQuantity) { this.availableQuantity = availableQuantity; }
-
-}
-</file>
-
-<file path="models/BorrowTransaction.java">
-package models;
-
-import java.time.LocalDate;
-
-public class BorrowTransaction {
-
-    private String transactionId;
-    private String memberId;
-    private String bookId;
-    private LocalDate borrowDate;
-    private LocalDate dueDate;
-    private LocalDate returnDate;
-    private double finePaid;
-
-    public BorrowTransaction(String transactionId, String memberId, String bookId, LocalDate borrowDate) {
-        this.transactionId = transactionId;
-        this.memberId = memberId;
-        this.bookId = bookId;
-        this.borrowDate = borrowDate;
-        this.dueDate = borrowDate.plusDays(14); // Default 14-day loan period
-        this.returnDate = null; // null means it's currently outstanding
-        this.finePaid = 0.0;
-    }
-
-    // Getters and Setters
-    public String getTransactionId() { return transactionId; }
-    public String getMemberId() { return memberId; }
-    public String getBookId() { return bookId; }
-    public LocalDate getBorrowDate() { return borrowDate; }
-    public LocalDate getDueDate() { return dueDate; }
-    public LocalDate getReturnDate() { return returnDate; }
-    public void setReturnDate(LocalDate returnDate) { this.returnDate = returnDate; }
-    public double getFinePaid() { return finePaid; }
-    public void setFinePaid(double finePaid) { this.finePaid = finePaid; }
-
-}
-</file>
-
-<file path="models/Member.java">
-package models;
-
-public class Member {
-
-    private String id;
-    private String name;
-    private String phone;
-    private String email;
-
-    public Member(String id, String name, String phone, String email) {
-        this.id = id;
-        this.name = name;
-        this.phone = phone;
-        this.email = email;
-    }
-
-    // Milestone 3 Hook: dynamic limit extraction instead of hardcoding '3' in loops
-    public int getBorrowLimit() {
-        return 3; 
-    }
-
-    // Getters and Setters
-    public String getId() { return id; }
-    public String getName() { return name; }
-    public void setName(String name) { this.name = name; }
-    public String getPhone() { return phone; }
-    public void setPhone(String phone) { this.phone = phone; }
-    public String getEmail() { return email; }
-    public void setEmail(String email) { this.email = email; }
-
-}
-</file>
-
-<file path="tests/UtilitiesTest.java">
-package tests;
-
-import java.util.List;
-import java.util.ArrayList;
-import java.time.LocalDate;
-
-import utilities.*;
-
-public class UtilitiesTest {
-
-    public static void testUtilities() {
-
-        // --- SCENARIO 1: Test UI Elements & Formatting ---
-        UIRender.clearScreen(); // Will clear if supported by terminal
-        UIRender.renderHeader("Executing Utilities Test Suite");
-
-        System.out.println("Testing raw Regex definitions via Validator class:");
-        System.out.println("  Is 'abc' a valid int? " + Validator.isValidInt("abc"));
-        System.out.println("  Is '125' a valid int? " + Validator.isValidInt("125"));
-        System.out.println("  Is '-4.25' a valid double? " + Validator.isValidDouble("-4.25"));
-        System.out.println("  Is '0987654321' a valid phone? " + Validator.isValidPhone("0987654321"));
-
-        UIRender.pauseEnter(); // Tests the pause mechanic
-
-        // --- SCENARIO 2: Interactive Menu Display ---
-        UIRender.clearScreen();
-        String[] mockMainMenuOptions = {
-            "Book Inventory Subsystem", 
-            "Member Directory Subsystem", 
-            "Circulation Transactions", 
-            "Analytical Reports"
-        };
-        // Rendering the menu flexibly
-        UIRender.renderMenu("Library Controller Simulation", mockMainMenuOptions); 
-        System.out.println("Visual look check complete.");
-
-        UIRender.pauseEnter();
-
-        // --- SCENARIO 3: Testing Guarded Primitive Inputs ---
-        UIRender.clearScreen();
-        UIRender.renderHeader("Defensive Input Capture Testing");
-        System.out.println("NOTE: Please intentionally type bad values (letters, spaces, empty values)");
-        System.out.println("to witness the loop trap them without crashing the application!\n");
-
-        // Test the customized string reader
-        String sampleName = Input.getString("Enter a tester name: ");
-        UIRender.renderSuccess("Captured Name: " + sampleName);
-
-        // Test standard number trap
-        int sampleAge = Input.getInt("Enter an age (Whole Number): ");
-        UIRender.renderSuccess("Captured Age: " + sampleAge);
-
-        // Test dynamic overloaded error messaging
-        double samplePrice = Input.getDouble("Enter target item price: ", "CUSTOM ERROR: Invalid cash amount format!");
-        UIRender.renderSuccess("Captured Price: $" + samplePrice);
-
-        UIRender.pauseEnter();
-
-        // --- SCENARIO 4: Calendar Math Verification ---
-        UIRender.clearScreen();
-        UIRender.renderHeader("Calendar Logic Boundary Testing");
-        System.out.println("Try testing invalid dates (e.g., 30/02/2026 or 32/01/2026):");
-
-        // Triggers the nested loop capturing day, month, and year
-        LocalDate validatedDate = Input.getDate("Provide a safe target date configuration:");
-        UIRender.renderSuccess("Constructed LocalDate Instance: " + validatedDate);
-
-        UIRender.pauseEnter();
-
-        // --- SCENARIO 5: Dynamic Table Formatting Engine ---
-        UIRender.clearScreen();
-        UIRender.renderHeader("Final Comprehensive Table Render Report");
-
-        String[] headers = {"Asset ID", "Resource Title", "Primary Contributor", "Stock Status"};
-        List<String[]> dataRows = new ArrayList<>();
-
-        // Testing columns scaling to accommodate different string lengths dynamically
-        dataRows.add(new String[]{"B001", "Dune", "Frank Herbert", "5 Units"});
-        dataRows.add(new String[]{"B002", "The Hitchhiker's Guide to the Galaxy", "Douglas Adams", "12 Units"});
-        dataRows.add(new String[]{"B003", "Neuromancer", "William Gibson", "0 Units"});
-        dataRows.add(new String[]{"M042", "Alice Vance", "Premium Tier", "Active"});
-
-        UIRender.renderTable(headers, dataRows); // Output dynamic dataset
-
-        System.out.println("\nAll utility targets checked successfully.");
-
-    }
-
-}
-</file>
-
-<file path="utilities/IDManager.java">
-package utilities;
-
-public class IDManager {
-
-    private static int bookCounter = 1;
-    private static int memberCounter = 1;
-    private static int transactionCounter = 1;
-
-    public static String generateBookID() {
-        return String.format("B%03d", bookCounter++); // e.g., B001, B002
-    }
-
-    public static String generateMemberID() {
-        return String.format("M%03d", memberCounter++); // e.g., M001, M002
-    }
-
-    public static String generateTransactionID() {
-        return String.format("T%03d", transactionCounter++); // e.g., T001, T002
-    }
-
-    // For Milestone 4: Call these when loading files so your counters don't reset!
-    public static void updateBookCounter(int lastIdNum) {
-        if (lastIdNum >= bookCounter) {
-            bookCounter = lastIdNum + 1;
-        }
-    }
-
-    public static void updateMemberCounter(int lastIdNum) {
-        if (lastIdNum >= memberCounter) {
-            memberCounter = lastIdNum + 1;
-        }
-    }
-}
-</file>
-
-<file path="utilities/Input.java">
-package utilities;
-
-import java.time.LocalDate;
-import java.util.Scanner;
-
-public class Input {
-
-    private static Scanner sc = new Scanner(System.in);
-
-    // With prompt and without prompt, mostly for quality of life.
-
-    private static void clearMess(int messCount) {
-            UIRender.pauseEnter();
-            UIRender.clearLinesUp(messCount);
-    }
+public class InputController {
+    private static final Scanner scanner = new Scanner(System.in);
 
     public static String getString(String prompt) {
-        String input;
         System.out.print(prompt);
-        input = sc.nextLine().trim();
-        return input;
-    } 
+        return scanner.nextLine().trim();
+    }
 
-    // Making a version that has a default errorMessage cause why not. Me lazy sometimes
-    public static int getInt(String prompt, String errorMessage) {
+    public static int getInt(String prompt) {
         while (true) {
-            String input;
             System.out.print(prompt);
-            input = sc.nextLine().trim();
+            String input = scanner.nextLine().trim();
             if (Validator.isValidInt(input)) {
                 return Integer.parseInt(input);
             }
-            UIRender.renderError(errorMessage);
-            clearMess(5);
+            UIRender.renderError("Invalid integer format. Please re-enter.");
         }
-    } 
+    }
 
-    public static int getInt(String prompt) {
-        return getInt(prompt, "Please type a valid whole number");
-    } 
-
-    public static double getDouble(String prompt, String errorMessage) {
+    public static double getDouble(String prompt) {
         while (true) {
-            String input;
             System.out.print(prompt);
-            input = sc.nextLine().trim();
+            String input = scanner.nextLine().trim();
             if (Validator.isValidDouble(input)) {
                 return Double.parseDouble(input);
             }
-            UIRender.renderError(errorMessage);
-            clearMess(5);
+            UIRender.renderError("Invalid decimal format. Please re-enter.");
         }
-    } 
+    }
 
-    public static double getDouble(String prompt) {
-        return getDouble(prompt, "Please type a valid real number");
-    } 
-
-
-    // Use LocalDate cause Java has it, don't need to create my own "Date".
-
-    public static LocalDate getDate(String prompt, String errorMessage) {
-        System.out.println(prompt);
+    public static int getValidPublicationYear() {
         while (true) {
-            int day = Input.getInt("Enter day (DD): ");
-            int month = Input.getInt("Enter month (MM): ");
-            int year = Input.getInt("Enter year (YYYY): ");
-
-            if (Validator.isValidDate(day, month, year)) {
-                return LocalDate.of(year, month, day);
+            int year = getInt("Enter Publication Year (YYYY): ");
+            if (year >= 0 && year <= LocalDate.now().getYear()) {
+                return year;
             }
-            UIRender.renderError(errorMessage);
-            clearMess(7);
+            UIRender.renderError("Year must be between 0 and " + LocalDate.now().getYear());
         }
-    } 
-
-    public static LocalDate getDate(String prompt) {
-        return getDate(prompt, "Inputted date does not exists, please try again");
-    } 
-
-}
-</file>
-
-<file path="utilities/UIRender.java">
-package utilities;
-
-import java.util.List;
-
-public class UIRender {
-
-    // Still don't know whether to make UIRender static or not.
-
-    private static final String BORDER_LINE = "==================================================";
-    private static final String DIVIDER_LINE = "--------------------------------------------------";
-
-    public static void renderHeader(String title) {
-        System.out.println("\n" + BORDER_LINE);
-
-        int paddingSpaces = (BORDER_LINE.length() - title.length()) / 2;
-        int totalWidth = paddingSpaces + title.length();
-        System.out.printf("%" + totalWidth + "s\n", title.toUpperCase());
-
-        System.out.println(BORDER_LINE);
     }
 
-    /*
-
-        Usage:
-
-        String[] mainMenuOptions = {
-            "Book Management", 
-            "Member Management", 
-            "Transactions", 
-            "Reports"
-        };
-
-        UIRender.renderMenu("Library Main Menu", mainMenuOptions);
-
-     */
-    public static void renderMenu(String menuTitle, String[] options) {
-        renderHeader(menuTitle);
-
-        for (int i = 0; i < options.length; i++) {
-            System.out.println("  [" + (i + 1) + "] " + options[i]);
+    public static int getValidQuantity() {
+        while (true) {
+            int qty = getInt("Enter Total Stock Quantity: ");
+            if (qty > 0) return qty;
+            UIRender.renderError("Quantity must be greater than zero.");
         }
-
-        System.out.println("  [0] Back / Exit");
-        System.out.println(DIVIDER_LINE);
     }
 
-    /*
-
-        How to use this method:
-
-        String[] headers = {"ID", "Name", "Age", "Class"};
-
-        List<String[]> dataRows = new ArrayList<>();
-
-        dataRows.add(new String[] {"01", "Nguyen Van A", "18", "SE1967"});
-        dataRows.add(new String[] {"02", "Nguyen Van B", "18", "SE1969"});
-        dataRows.add(new String[] {"03", "Nguyen Van C", "18", "SE6767"});
-
-        UIRender.renderTable(headers, dataRows);
-
-     */
-    public static void renderTable(String[] headers, List<String[]> rows) {
-        if (headers == null || headers.length == 0) return;
-
-        int[] colWidths = new int[headers.length];
-
-        for (int i = 0; i < headers.length; i++) {
-            colWidths[i] = headers[i].length();
+    public static double getValidReplacementCost() {
+        while (true) {
+            double cost = getDouble("Enter Book Replacement Compensation Cost (VND): ");
+            if (cost >= 0) return cost;
+            UIRender.renderError("Cost cannot be negative.");
         }
+    }
 
-        // Automatically expand the collumn's width if the content is too long
-        for (String[] row : rows) {
-            for (int i = 0; i < row.length; i++) {
-                if (i < colWidths.length && row[i] != null) {
-                    colWidths[i] = Math.max(colWidths[i], row[i].length());
+    public static int getChoice(String prompt, int maxOption) {
+        while (true) {
+            int choice = getInt(prompt);
+            if (choice >= 0 && choice <= maxOption) return choice;
+            UIRender.renderError("Selection out of bounds. Range [0-" + maxOption + "].");
+        }
+    }
+
+    public static Book inputNewBookData() {
+        String title = getString("Enter Book Title: ");
+        String author = getString("Enter Author: ");
+        String genre = getString("Enter Genre: ");
+        int year = getValidPublicationYear();
+        int qty = getValidQuantity();
+        return new Book(title, author, genre, year, qty);
+    }
+
+    public static Member inputNewMemberData() {
+        String name = getString("Enter Full Legal Name: ");
+        String phone = getString("Enter Contact Phone: ");
+        String email = getString("Enter System Email: ");
+        return new Member(name, phone, email);
+    }
+
+    /**
+     * FIXED: This method now generates and RETURNS a completely NEW Book object instance.
+     */
+    public static Book updateBookModelFields(Book currentBook) {
+        System.out.println("\n[INFO] Press Enter to skip a field and keep current values.\n");
+        String title = getString("Update Title [" + currentBook.getTitle() + "]: ");
+        String author = getString("Update Author [" + currentBook.getAuthor() + "]: ");
+        String genre = getString("Update Genre [" + currentBook.getGenre() + "]: ");
+
+        String updatedTitle = title.isEmpty() ? currentBook.getTitle() : title;
+        String updatedAuthor = author.isEmpty() ? currentBook.getAuthor() : author;
+        String updatedGenre = genre.isEmpty() ? currentBook.getGenre() : genre;
+
+        int updatedYear = currentBook.getPublicationYear();
+        while (true) {
+            String yearRaw = getString("Update Publication Year [" + currentBook.getPublicationYear() + "]: ");
+            if (yearRaw.isEmpty()) break;
+            if (Validator.isValidInt(yearRaw)) {
+                int year = Integer.parseInt(yearRaw);
+                if (year >= 0 && year <= LocalDate.now().getYear()) {
+                    updatedYear = year;
+                    break;
                 }
             }
+            UIRender.renderError("Invalid publication year limits.");
         }
 
-        StringBuilder dividerSB = new StringBuilder("+"); // StringBuilder for mutable String
-        for (int width : colWidths) {
-            for (int i = 0; i < width + 2; i++) {
-                dividerSB.append("-");
+        int updatedTotalQty = currentBook.getTotalQuantity();
+        while (true) {
+            String qtyRaw = getString("Update Max Stock Quantity [" + currentBook.getTotalQuantity() + "]: ");
+            if (qtyRaw.isEmpty()) break;
+            if (Validator.isValidInt(qtyRaw)) {
+                int total = Integer.parseInt(qtyRaw);
+                if (total <= 0) {
+                    UIRender.renderError("Quantity must be positive.");
+                } else {
+                    updatedTotalQty = total;
+                    break;
+                }
+            } else {
+                UIRender.renderError("Invalid integer format.");
             }
-            dividerSB.append("+");
         }
-        String divider = dividerSB.toString();
 
-        // Print header row
-        System.out.println(divider);
-        System.out.print("|");
-        for (int i = 0; i < headers.length; i++) {
-            System.out.printf(" %-" + colWidths[i] + "s |", headers[i]);
-        }
-        System.out.println("\n" + divider);
+        // Deep copy instantiation simulation
+        Book newBook = new Book(updatedTitle, updatedAuthor, updatedGenre, updatedYear, updatedTotalQty);
+        // Retain original identity token system key and runtime balances
+        // Reflection setting simulation or manual internal sync via standard setup wrapper
+        newBook.setAvailableQuantity(currentBook.getAvailableQuantity() + (updatedTotalQty - currentBook.getTotalQuantity()));
+        return newBook;
+    }
 
-        // Print content rows
-        for (String[] row : rows) {
-            System.out.print("|");
-            for (int i = 0; i < headers.length; i++) {
-                String cell = (i < row.length && row[i] != null) ? row[i] : "";
-                System.out.printf(" %-" + colWidths[i] + "s |", cell);
+    /**
+     * FIXED: Generates and RETURNS a completely NEW Member object instance.
+     */
+    public static Member updateMemberModelFields(Member currentMember) {
+        System.out.println("\n[INFO] Press Enter to skip a field and keep current values.\n");
+        String name = getString("Update Name [" + currentMember.getName() + "]: ");
+        String phone = getString("Update Phone [" + currentMember.getPhone() + "]: ");
+        String email = getString("Update Email [" + currentMember.getEmail() + "]: ");
+
+        String updatedName = name.isEmpty() ? currentMember.getName() : name;
+        String updatedPhone = phone.isEmpty() ? currentMember.getPhone() : phone;
+        String updatedEmail = email.isEmpty() ? currentMember.getEmail() : email;
+
+        return new Member(updatedName, updatedPhone, updatedEmail);
+    }
+
+    public static LocalDate inputCustomDueDate(LocalDate borrowDate) {
+        while (true) {
+            System.out.println("Enter Custom Due Date components:");
+            int day = getInt("  Enter Day (DD): ");
+            int month = getInt("  Enter Month (MM): ");
+            int year = getInt("  Enter Year (YYYY): ");
+
+            if (Validator.isValidDate(day, month, year)) {
+                LocalDate date = LocalDate.of(year, month, day);
+                if (!date.isBefore(borrowDate)) return date;
+                UIRender.renderError("Due date cannot be before borrow date.");
+            } else {
+                UIRender.renderError("Invalid calendar date constructed. Re-enter.");
             }
-            System.out.println();
         }
-
-        System.out.println(divider);
     }
 
-    public static void renderSuccess(String message) {
-        System.out.println("\n[SUCCESS] >>> " + message + "\n");
-    }
-
-    public static void renderError(String message) {
-        System.err.println("\n[ERROR] !!! " + message + " !!!\n");
-    }
-
-    public static void pauseEnter() {
-        Input.getString("Press Enter to continue..."); 
-    }
-
-    public static void pauseEnter(String prompt) {
-        Input.getString("\n" + prompt); 
-        System.out.println("");
-    }
-
-    // Both of these won't work in NetBeans but work if you run it in the terminal.
-    public static void clearScreen() {
-        System.out.print("\033[H\033[2J");
-        System.out.flush();
-    }
-
-    public static void clearLinesUp(int count) {
-        for (int i = 0; i < count; i++) {
-            // \033[1A : Move cursor up 1 line
-            // \033[2K : Clear that entire line
-            System.out.print("\033[1A\033[2K");
+    public static BorrowTransaction selectTransactionFromList(List<BorrowTransaction> transactions) {
+        if (transactions == null || transactions.isEmpty()) return null;
+        int idx = getInt("Select transaction row index target selection (1-" + transactions.size() + "): ") - 1;
+        if (idx >= 0 && idx < transactions.size()) {
+            return transactions.get(idx);
         }
-        System.out.flush();
+        UIRender.renderError("Index reference mismatch.");
+        return null;
     }
-
 }
 </file>
 
-<file path="utilities/Validator.java">
+<file path="build.xml">
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="PRO192" default="run" basedir=".">
+
+    <property name="src.dir" value="src"/>
+    <property name="build.dir" value="build"/>
+    <property name="classes.dir" value="${build.dir}/classes"/>
+    <property name="dist.dir" value="dist"/>
+    <property name="main-class" value="Main"/>
+
+    <target name="clean">
+        <delete dir="${build.dir}"/>
+    </target>
+
+    <target name="compile">
+        <mkdir dir="${classes.dir}"/>
+        <javac srcdir="${src.dir}" destdir="${classes.dir}" includeantruntime="false"/>
+    </target>
+
+    <target name="jar" depends="compile">
+        <mkdir dir="${dist.dir}"/>
+        <jar destfile="${dist.dir}/${ant.project.name}.jar">
+            <fileset dir="${classes.dir}"/>
+            <manifest>
+                <attribute name="Main-Class" value="${main-class}"/>
+            </manifest>
+        </jar>
+    </target>
+
+    <target name="run" depends="compile">
+        <java classname="${main-class}" fork="true">
+            <classpath>
+                <pathelement location="${classes.dir}"/>
+            </classpath>
+        </java>
+    </target>
+
+</project>
+</file>
+
+<file path="FPTU_PRO192_LibraryManagement.iml">
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="JAVA_MODULE" version="4">
+  <component name="NewModuleRootManager" inherit-compiler-output="true">
+    <exclude-output />
+    <content url="file://$MODULE_DIR$">
+      <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" />
+    </content>
+    <orderEntry type="inheritedJdk" />
+    <orderEntry type="sourceFolder" forTests="false" />
+  </component>
+</module>
+</file>
+
+<file path="nbproject/build-impl.xml">
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+*** GENERATED FROM project.xml - DO NOT EDIT  ***
+***         EDIT ../build.xml INSTEAD         ***
+
+For the purpose of easier reading the script
+is divided into following sections:
+
+  - initialization
+  - compilation
+  - jar
+  - execution
+  - debugging
+  - javadoc
+  - test compilation
+  - test execution
+  - test debugging
+  - applet
+  - cleanup
+
+        -->
+<project xmlns:if="ant:if" xmlns:j2seproject1="http://www.netbeans.org/ns/j2se-project/1" xmlns:j2seproject3="http://www.netbeans.org/ns/j2se-project/3" xmlns:jaxrpc="http://www.netbeans.org/ns/j2se-project/jax-rpc" xmlns:unless="ant:unless" basedir=".." default="default" name="PRO192_LibraryManagement-impl">
+    <fail message="Please build using Ant 1.8.0 or higher.">
+        <condition>
+            <not>
+                <antversion atleast="1.8.0"/>
+            </not>
+        </condition>
+    </fail>
+    <target depends="test,jar,javadoc" description="Build and test whole project." name="default"/>
+    <!-- 
+                ======================
+                INITIALIZATION SECTION 
+                ======================
+            -->
+    <target name="-pre-init">
+        <!-- Empty placeholder for easier customization. -->
+        <!-- You can override this target in the ../build.xml file. -->
+    </target>
+    <target depends="-pre-init" name="-init-private">
+        <property file="nbproject/private/config.properties"/>
+        <property file="nbproject/private/configs/${config}.properties"/>
+        <property file="nbproject/private/private.properties"/>
+    </target>
+    <target depends="-pre-init,-init-private" name="-init-user">
+        <property file="${user.properties.file}"/>
+        <!-- The two properties below are usually overridden -->
+        <!-- by the active platform. Just a fallback. -->
+        <property name="default.javac.source" value="1.8"/>
+        <property name="default.javac.target" value="1.8"/>
+    </target>
+    <target depends="-pre-init,-init-private,-init-user" name="-init-project">
+        <property file="nbproject/configs/${config}.properties"/>
+        <property file="nbproject/project.properties"/>
+    </target>
+    <target name="-init-modules-supported">
+        <condition property="modules.supported.internal" value="true">
+            <not>
+                <matches pattern="1\.[0-8](\..*)?" string="${javac.source}"/>
+            </not>
+        </condition>
+    </target>
+    <target depends="-init-modules-supported" if="modules.supported.internal" name="-init-macrodef-modulename">
+        <macrodef name="modulename" uri="http://www.netbeans.org/ns/j2se-project/3">
+            <attribute name="property"/>
+            <attribute name="sourcepath"/>
+            <sequential>
+                <loadresource property="@{property}" quiet="true">
+                    <javaresource classpath="@{sourcepath}" name="module-info.java" parentFirst="false"/>
+                    <filterchain>
+                        <stripjavacomments/>
+                        <linecontainsregexp>
+                            <regexp pattern="module .* \{"/>
+                        </linecontainsregexp>
+                        <tokenfilter>
+                            <linetokenizer/>
+                            <replaceregex flags="s" pattern="(\s*module\s+)(\S*)(\s*\{.*)" replace="\2"/>
+                        </tokenfilter>
+                        <striplinebreaks/>
+                    </filterchain>
+                </loadresource>
+            </sequential>
+        </macrodef>
+    </target>
+    <target depends="-init-modules-supported,-init-macrodef-modulename" if="modules.supported.internal" name="-init-source-module-properties">
+        <fail message="Java 9 support requires Ant 1.10.0 or higher.">
+            <condition>
+                <not>
+                    <antversion atleast="1.10.0"/>
+                </not>
+            </condition>
+        </fail>
+        <j2seproject3:modulename property="module.name" sourcepath="${src.dir}"/>
+        <condition property="named.module.internal">
+            <and>
+                <isset property="module.name"/>
+                <length length="0" string="${module.name}" when="greater"/>
+            </and>
+        </condition>
+        <condition property="unnamed.module.internal">
+            <not>
+                <isset property="named.module.internal"/>
+            </not>
+        </condition>
+        <property name="javac.modulepath" value=""/>
+        <property name="run.modulepath" value="${javac.modulepath}"/>
+        <property name="module.build.classes.dir" value="${build.classes.dir}"/>
+        <property name="debug.modulepath" value="${run.modulepath}"/>
+        <property name="javac.upgrademodulepath" value=""/>
+        <property name="run.upgrademodulepath" value="${javac.upgrademodulepath}"/>
+        <condition else="" property="javac.systemmodulepath.cmd.line.arg" value="--system '${javac.systemmodulepath}'">
+            <and>
+                <isset property="javac.systemmodulepath"/>
+                <length length="0" string="${javac.systemmodulepath}" when="greater"/>
+            </and>
+        </condition>
+        <property name="dist.jlink.dir" value="${dist.dir}/jlink"/>
+        <property name="dist.jlink.output" value="${dist.jlink.dir}/${application.title}"/>
+        <property name="module.name" value=""/>
+    </target>
+    <target depends="-pre-init,-init-private,-init-user,-init-project,-init-macrodef-property,-init-modules-supported" name="-do-init">
+        <property name="platform.java" value="${java.home}/bin/java"/>
+        <available file="${manifest.file}" property="manifest.available"/>
+        <condition property="splashscreen.available">
+            <and>
+                <not>
+                    <equals arg1="${application.splash}" arg2="" trim="true"/>
+                </not>
+                <available file="${application.splash}"/>
+            </and>
+        </condition>
+        <condition property="main.class.available">
+            <and>
+                <isset property="main.class"/>
+                <not>
+                    <equals arg1="${main.class}" arg2="" trim="true"/>
+                </not>
+            </and>
+        </condition>
+        <condition property="profile.available">
+            <and>
+                <isset property="javac.profile"/>
+                <length length="0" string="${javac.profile}" when="greater"/>
+                <not>
+                    <matches pattern="1\.[0-7](\..*)?" string="${javac.source}"/>
+                </not>
+            </and>
+        </condition>
+        <condition property="do.archive">
+            <or>
+                <not>
+                    <istrue value="${jar.archive.disabled}"/>
+                </not>
+                <istrue value="${not.archive.disabled}"/>
+            </or>
+        </condition>
+        <condition property="do.archive+manifest.available">
+            <and>
+                <isset property="manifest.available"/>
+                <istrue value="${do.archive}"/>
+            </and>
+        </condition>
+        <condition property="do.archive+main.class.available">
+            <and>
+                <isset property="main.class.available"/>
+                <istrue value="${do.archive}"/>
+            </and>
+        </condition>
+        <condition property="do.archive+splashscreen.available">
+            <and>
+                <isset property="splashscreen.available"/>
+                <istrue value="${do.archive}"/>
+            </and>
+        </condition>
+        <condition property="do.archive+profile.available">
+            <and>
+                <isset property="profile.available"/>
+                <istrue value="${do.archive}"/>
+            </and>
+        </condition>
+        <condition property="have.tests">
+            <or>
+                <available file="${test.src.dir}"/>
+            </or>
+        </condition>
+        <condition property="have.sources">
+            <or>
+                <available file="${src.dir}"/>
+            </or>
+        </condition>
+        <condition property="netbeans.home+have.tests">
+            <and>
+                <isset property="netbeans.home"/>
+                <isset property="have.tests"/>
+            </and>
+        </condition>
+        <condition property="no.javadoc.preview">
+            <and>
+                <isset property="javadoc.preview"/>
+                <isfalse value="${javadoc.preview}"/>
+            </and>
+        </condition>
+        <property name="run.jvmargs" value=""/>
+        <property name="run.jvmargs.ide" value=""/>
+        <property name="javac.compilerargs" value=""/>
+        <property name="work.dir" value="${basedir}"/>
+        <condition property="no.deps">
+            <and>
+                <istrue value="${no.dependencies}"/>
+            </and>
+        </condition>
+        <property name="javac.debug" value="true"/>
+        <property name="javadoc.preview" value="true"/>
+        <property name="application.args" value=""/>
+        <property name="source.encoding" value="${file.encoding}"/>
+        <property name="runtime.encoding" value="${source.encoding}"/>
+        <property name="manifest.encoding" value="${source.encoding}"/>
+        <condition property="javadoc.encoding.used" value="${javadoc.encoding}">
+            <and>
+                <isset property="javadoc.encoding"/>
+                <not>
+                    <equals arg1="${javadoc.encoding}" arg2=""/>
+                </not>
+            </and>
+        </condition>
+        <property name="javadoc.encoding.used" value="${source.encoding}"/>
+        <property name="includes" value="**"/>
+        <property name="excludes" value=""/>
+        <property name="do.depend" value="false"/>
+        <condition property="do.depend.true">
+            <istrue value="${do.depend}"/>
+        </condition>
+        <path id="endorsed.classpath.path" path="${endorsed.classpath}"/>
+        <condition else="" property="endorsed.classpath.cmd.line.arg" value="-Xbootclasspath/p:'${toString:endorsed.classpath.path}'">
+            <and>
+                <isset property="endorsed.classpath"/>
+                <not>
+                    <equals arg1="${endorsed.classpath}" arg2="" trim="true"/>
+                </not>
+            </and>
+        </condition>
+        <condition else="" property="javac.profile.cmd.line.arg" value="-profile ${javac.profile}">
+            <isset property="profile.available"/>
+        </condition>
+        <condition else="false" property="jdkBug6558476">
+            <and>
+                <matches pattern="1\.[56]" string="${java.specification.version}"/>
+                <not>
+                    <os family="unix"/>
+                </not>
+            </and>
+        </condition>
+        <condition else="false" property="javac.fork">
+            <or>
+                <istrue value="${jdkBug6558476}"/>
+                <istrue value="${javac.external.vm}"/>
+            </or>
+        </condition>
+        <property name="jar.index" value="false"/>
+        <property name="jar.index.metainf" value="${jar.index}"/>
+        <property name="copylibs.rebase" value="true"/>
+        <available file="${meta.inf.dir}/persistence.xml" property="has.persistence.xml"/>
+        <condition property="junit.available">
+            <or>
+                <available classname="org.junit.Test" classpath="${run.test.classpath}"/>
+                <available classname="junit.framework.Test" classpath="${run.test.classpath}"/>
+            </or>
+        </condition>
+        <condition property="testng.available">
+            <available classname="org.testng.annotations.Test" classpath="${run.test.classpath}"/>
+        </condition>
+        <condition property="junit+testng.available">
+            <and>
+                <istrue value="${junit.available}"/>
+                <istrue value="${testng.available}"/>
+            </and>
+        </condition>
+        <condition else="testng" property="testng.mode" value="mixed">
+            <istrue value="${junit+testng.available}"/>
+        </condition>
+        <condition else="" property="testng.debug.mode" value="-mixed">
+            <istrue value="${junit+testng.available}"/>
+        </condition>
+        <property name="java.failonerror" value="true"/>
+    </target>
+    <target name="-post-init">
+        <!-- Empty placeholder for easier customization. -->
+        <!-- You can override this target in the ../build.xml file. -->
+    </target>
+    <target depends="-pre-init,-init-private,-init-user,-init-project,-do-init" name="-init-check">
+        <fail unless="src.dir">Must set src.dir</fail>
+        <fail unless="test.src.dir">Must set test.src.dir</fail>
+        <fail unless="build.dir">Must set build.dir</fail>
+        <fail unless="dist.dir">Must set dist.dir</fail>
+        <fail unless="build.classes.dir">Must set build.classes.dir</fail>
+        <fail unless="dist.javadoc.dir">Must set dist.javadoc.dir</fail>
+        <fail unless="build.test.classes.dir">Must set build.test.classes.dir</fail>
+        <fail unless="build.test.results.dir">Must set build.test.results.dir</fail>
+        <fail unless="build.classes.excludes">Must set build.classes.excludes</fail>
+        <fail unless="dist.jar">Must set dist.jar</fail>
+    </target>
+    <target name="-init-macrodef-property">
+        <macrodef name="property" uri="http://www.netbeans.org/ns/j2se-project/1">
+            <attribute name="name"/>
+            <attribute name="value"/>
+            <sequential>
+                <property name="@{name}" value="${@{value}}"/>
+            </sequential>
+        </macrodef>
+    </target>
+    <target depends="-init-ap-cmdline-properties,-init-source-module-properties" if="modules.supported.internal" name="-init-macrodef-javac-with-module">
+        <macrodef name="javac" uri="http://www.netbeans.org/ns/j2se-project/3">
+            <attribute default="${src.dir}" name="srcdir"/>
+            <attribute default="${build.classes.dir}" name="destdir"/>
+            <attribute default="${javac.classpath}" name="classpath"/>
+            <attribute default="${javac.modulepath}" name="modulepath"/>
+            <attribute default="${javac.upgrademodulepath}" name="upgrademodulepath"/>
+            <attribute default="${javac.processorpath}" name="processorpath"/>
+            <attribute default="${javac.processormodulepath}" name="processormodulepath"/>
+            <attribute default="${build.generated.sources.dir}/ap-source-output" name="apgeneratedsrcdir"/>
+            <attribute default="${includes}" name="includes"/>
+            <attribute default="${excludes}" name="excludes"/>
+            <attribute default="${javac.debug}" name="debug"/>
+            <attribute default="${empty.dir}" name="sourcepath" unless:set="named.module.internal"/>
+            <attribute default="${src.dir}" if:set="named.module.internal" name="sourcepath"/>
+            <attribute default="${empty.dir}" name="gensrcdir"/>
+            <element name="customize" optional="true"/>
+            <sequential>
+                <condition property="warn.excludes.internal">
+                    <and>
+                        <isset property="named.module.internal"/>
+                        <length length="0" string="@{excludes}" trim="true" when="greater"/>
+                    </and>
+                </condition>
+                <echo if:set="warn.excludes.internal" level="warning" message="The javac excludes are not supported in the JDK 9 Named Module."/>
+                <property location="${build.dir}/empty" name="empty.dir"/>
+                <mkdir dir="${empty.dir}"/>
+                <mkdir dir="@{apgeneratedsrcdir}"/>
+                <condition property="processormodulepath.set">
+                    <resourcecount count="0" when="greater">
+                        <path>
+                            <pathelement path="@{processormodulepath}"/>
+                        </path>
+                    </resourcecount>
+                </condition>
+                <javac debug="@{debug}" deprecation="${javac.deprecation}" destdir="@{destdir}" encoding="${source.encoding}" excludes="@{excludes}" fork="${javac.fork}" includeantruntime="false" includes="@{includes}" source="${javac.source}" sourcepath="@{sourcepath}" srcdir="@{srcdir}" target="${javac.target}" tempdir="${java.io.tmpdir}">
+                    <src>
+                        <dirset dir="@{gensrcdir}" erroronmissingdir="false">
+                            <include name="*"/>
+                        </dirset>
+                    </src>
+                    <classpath>
+                        <path path="@{classpath}"/>
+                    </classpath>
+                    <modulepath>
+                        <path path="@{modulepath}"/>
+                    </modulepath>
+                    <upgrademodulepath>
+                        <path path="@{upgrademodulepath}"/>
+                    </upgrademodulepath>
+                    <compilerarg line="${javac.systemmodulepath.cmd.line.arg}"/>
+                    <compilerarg line="${javac.profile.cmd.line.arg}"/>
+                    <compilerarg line="${javac.compilerargs}"/>
+                    <compilerarg if:set="processormodulepath.set" value="--processor-module-path"/>
+                    <compilerarg if:set="processormodulepath.set" path="@{processormodulepath}"/>
+                    <compilerarg unless:set="processormodulepath.set" value="-processorpath"/>
+                    <compilerarg path="@{processorpath}:${empty.dir}" unless:set="processormodulepath.set"/>
+                    <compilerarg line="${ap.processors.internal}"/>
+                    <compilerarg line="${annotation.processing.processor.options}"/>
+                    <compilerarg value="-s"/>
+                    <compilerarg path="@{apgeneratedsrcdir}"/>
+                    <compilerarg line="${ap.proc.none.internal}"/>
+                    <customize/>
+                </javac>
+            </sequential>
+        </macrodef>
+    </target>
+    <target depends="-init-ap-cmdline-properties,-init-source-module-properties" if="ap.supported.internal" name="-init-macrodef-javac-with-processors" unless="modules.supported.internal">
+        <macrodef name="javac" uri="http://www.netbeans.org/ns/j2se-project/3">
+            <attribute default="${src.dir}" name="srcdir"/>
+            <attribute default="${build.classes.dir}" name="destdir"/>
+            <attribute default="${javac.classpath}" name="classpath"/>
+            <attribute default="${javac.modulepath}" name="modulepath"/>
+            <attribute default="${javac.upgrademodulepath}" name="upgrademodulepath"/>
+            <attribute default="${javac.processorpath}" name="processorpath"/>
+            <attribute default="${build.generated.sources.dir}/ap-source-output" name="apgeneratedsrcdir"/>
+            <attribute default="${includes}" name="includes"/>
+            <attribute default="${excludes}" name="excludes"/>
+            <attribute default="${javac.debug}" name="debug"/>
+            <attribute default="${empty.dir}" name="sourcepath"/>
+            <attribute default="${empty.dir}" name="gensrcdir"/>
+            <element name="customize" optional="true"/>
+            <sequential>
+                <property location="${build.dir}/empty" name="empty.dir"/>
+                <mkdir dir="${empty.dir}"/>
+                <mkdir dir="@{apgeneratedsrcdir}"/>
+                <javac debug="@{debug}" deprecation="${javac.deprecation}" destdir="@{destdir}" encoding="${source.encoding}" excludes="@{excludes}" fork="${javac.fork}" includeantruntime="false" includes="@{includes}" source="${javac.source}" sourcepath="@{sourcepath}" srcdir="@{srcdir}" target="${javac.target}" tempdir="${java.io.tmpdir}">
+                    <src>
+                        <dirset dir="@{gensrcdir}" erroronmissingdir="false">
+                            <include name="*"/>
+                        </dirset>
+                    </src>
+                    <classpath>
+                        <path path="@{classpath}"/>
+                    </classpath>
+                    <compilerarg line="${endorsed.classpath.cmd.line.arg}"/>
+                    <compilerarg line="${javac.profile.cmd.line.arg}"/>
+                    <compilerarg line="${javac.compilerargs}"/>
+                    <compilerarg value="-processorpath"/>
+                    <compilerarg path="@{processorpath}:${empty.dir}"/>
+                    <compilerarg line="${ap.processors.internal}"/>
+                    <compilerarg line="${annotation.processing.processor.options}"/>
+                    <compilerarg value="-s"/>
+                    <compilerarg path="@{apgeneratedsrcdir}"/>
+                    <compilerarg line="${ap.proc.none.internal}"/>
+                    <customize/>
+                </javac>
+            </sequential>
+        </macrodef>
+    </target>
+    <target depends="-init-ap-cmdline-properties,-init-source-module-properties" name="-init-macrodef-javac-without-processors" unless="ap.supported.internal">
+        <macrodef name="javac" uri="http://www.netbeans.org/ns/j2se-project/3">
+            <attribute default="${src.dir}" name="srcdir"/>
+            <attribute default="${build.classes.dir}" name="destdir"/>
+            <attribute default="${javac.classpath}" name="classpath"/>
+            <attribute default="${javac.modulepath}" name="modulepath"/>
+            <attribute default="${javac.upgrademodulepath}" name="upgrademodulepath"/>
+            <attribute default="${javac.processorpath}" name="processorpath"/>
+            <attribute default="${build.generated.sources.dir}/ap-source-output" name="apgeneratedsrcdir"/>
+            <attribute default="${includes}" name="includes"/>
+            <attribute default="${excludes}" name="excludes"/>
+            <attribute default="${javac.debug}" name="debug"/>
+            <attribute default="${empty.dir}" name="sourcepath"/>
+            <attribute default="${empty.dir}" name="gensrcdir"/>
+            <element name="customize" optional="true"/>
+            <sequential>
+                <property location="${build.dir}/empty" name="empty.dir"/>
+                <mkdir dir="${empty.dir}"/>
+                <javac debug="@{debug}" deprecation="${javac.deprecation}" destdir="@{destdir}" encoding="${source.encoding}" excludes="@{excludes}" fork="${javac.fork}" includeantruntime="false" includes="@{includes}" source="${javac.source}" sourcepath="@{sourcepath}" srcdir="@{srcdir}" target="${javac.target}" tempdir="${java.io.tmpdir}">
+                    <src>
+                        <dirset dir="@{gensrcdir}" erroronmissingdir="false">
+                            <include name="*"/>
+                        </dirset>
+                    </src>
+                    <classpath>
+                        <path path="@{classpath}"/>
+                    </classpath>
+                    <compilerarg line="${endorsed.classpath.cmd.line.arg}"/>
+                    <compilerarg line="${javac.profile.cmd.line.arg}"/>
+                    <compilerarg line="${javac.compilerargs}"/>
+                    <customize/>
+                </javac>
+            </sequential>
+        </macrodef>
+    </target>
+    <target depends="-init-macrodef-javac-with-module,-init-macrodef-javac-with-processors,-init-macrodef-javac-without-processors" name="-init-macrodef-javac">
+        <macrodef name="depend" uri="http://www.netbeans.org/ns/j2se-project/3">
+            <attribute default="${src.dir}" name="srcdir"/>
+            <attribute default="${build.classes.dir}" name="destdir"/>
+            <attribute default="${javac.classpath}" name="classpath"/>
+            <sequential>
+                <depend cache="${build.dir}/depcache" destdir="@{destdir}" excludes="${excludes}" includes="${includes}" srcdir="@{srcdir}">
+                    <classpath>
+                        <path path="@{classpath}"/>
+                    </classpath>
+                </depend>
+            </sequential>
+        </macrodef>
+        <macrodef name="force-recompile" uri="http://www.netbeans.org/ns/j2se-project/3">
+            <attribute default="${build.classes.dir}" name="destdir"/>
+            <sequential>
+                <fail unless="javac.includes">Must set javac.includes</fail>
+                <pathconvert pathsep="${line.separator}" property="javac.includes.binary">
+                    <path>
+                        <filelist dir="@{destdir}" files="${javac.includes}"/>
+                    </path>
+                    <globmapper from="*.java" to="*.class"/>
+                </pathconvert>
+                <tempfile deleteonexit="true" property="javac.includesfile.binary"/>
+                <echo file="${javac.includesfile.binary}" message="${javac.includes.binary}"/>
+                <delete>
+                    <files includesfile="${javac.includesfile.binary}"/>
+                </delete>
+                <delete>
+                    <fileset file="${javac.includesfile.binary}"/>
+                </delete>
+            </sequential>
+        </macrodef>
+    </target>
+    <target if="${junit.available}" name="-init-macrodef-junit-init">
+        <condition else="false" property="nb.junit.batch" value="true">
+            <and>
+                <istrue value="${junit.available}"/>
+                <not>
+                    <isset property="test.method"/>
+                </not>
+            </and>
+        </condition>
+        <condition else="false" property="nb.junit.single" value="true">
+            <and>
+                <istrue value="${junit.available}"/>
+                <isset property="test.method"/>
+            </and>
+        </condition>
+    </target>
+    <target name="-init-test-properties">
+        <property name="test.binaryincludes" value="&lt;nothing&gt;"/>
+        <property name="test.binarytestincludes" value=""/>
+        <property name="test.binaryexcludes" value=""/>
+    </target>
+    <target depends="-init-modules-supported" if="modules.supported.internal" name="-init-macrodef-junit-prototype-with-module">
+        <macrodef name="junit-prototype" uri="http://www.netbeans.org/ns/j2se-project/3">
+            <attribute default="${includes}" name="includes"/>
+            <attribute default="${excludes}" name="excludes"/>
+            <element name="customizePrototype" optional="true"/>
+            <sequential>
+                <property name="junit.forkmode" value="perTest"/>
+                <junit dir="${work.dir}" errorproperty="tests.failed" failureproperty="tests.failed" fork="true" forkmode="${junit.forkmode}" showoutput="true" tempdir="${build.dir}">
+                    <syspropertyset>
+                        <propertyref prefix="test-sys-prop."/>
+                        <mapper from="test-sys-prop.*" to="*" type="glob"/>
+                    </syspropertyset>
+                    <classpath>
+                        <path path="${run.test.classpath}"/>
+                    </classpath>
+                    <modulepath>
+                        <path path="${run.test.modulepath}"/>
+                    </modulepath>
+                    <formatter type="brief" usefile="false"/>
+                    <formatter type="xml"/>
+                    <jvmarg line="${endorsed.classpath.cmd.line.arg}"/>
+                    <jvmarg value="-ea"/>
+                    <jvmarg line="${run.test.jvmargs}"/>
+                    <customizePrototype/>
+                </junit>
+            </sequential>
+        </macrodef>
+    </target>
+    <target depends="-init-modules-supported" name="-init-macrodef-junit-prototype-without-module" unless="modules.supported.internal">
+        <macrodef name="junit-prototype" uri="http://www.netbeans.org/ns/j2se-project/3">
+            <attribute default="${includes}" name="includes"/>
+            <attribute default="${excludes}" name="excludes"/>
+            <element name="customizePrototype" optional="true"/>
+            <sequential>
+                <property name="junit.forkmode" value="perTest"/>
+                <junit dir="${work.dir}" errorproperty="tests.failed" failureproperty="tests.failed" fork="true" forkmode="${junit.forkmode}" showoutput="true" tempdir="${build.dir}">
+                    <syspropertyset>
+                        <propertyref prefix="test-sys-prop."/>
+                        <mapper from="test-sys-prop.*" to="*" type="glob"/>
+                    </syspropertyset>
+                    <classpath>
+                        <path path="${run.test.classpath}"/>
+                    </classpath>
+                    <formatter type="brief" usefile="false"/>
+                    <formatter type="xml"/>
+                    <jvmarg line="${endorsed.classpath.cmd.line.arg}"/>
+                    <jvmarg value="-ea"/>
+                    <customizePrototype/>
+                </junit>
+            </sequential>
+        </macrodef>
+    </target>
+    <target depends="-init-test-properties,-init-macrodef-junit-prototype-with-module,-init-macrodef-junit-prototype-without-module" if="${nb.junit.single}" name="-init-macrodef-junit-single" unless="${nb.junit.batch}">
+        <macrodef name="junit" uri="http://www.netbeans.org/ns/j2se-project/3">
+            <attribute default="${includes}" name="includes"/>
+            <attribute default="${excludes}" name="excludes"/>
+            <attribute default="**" name="testincludes"/>
+            <attribute default="" name="testmethods"/>
+            <element name="customize" optional="true"/>
+            <sequential>
+                <j2seproject3:junit-prototype>
+                    <customizePrototype>
+                        <test methods="@{testmethods}" name="@{testincludes}" todir="${build.test.results.dir}"/>
+                        <customize/>
+                    </customizePrototype>
+                </j2seproject3:junit-prototype>
+            </sequential>
+        </macrodef>
+    </target>
+    <target depends="-init-test-properties,-init-macrodef-junit-prototype-with-module,-init-macrodef-junit-prototype-without-module" if="${nb.junit.batch}" name="-init-macrodef-junit-batch" unless="${nb.junit.single}">
+        <macrodef name="junit" uri="http://www.netbeans.org/ns/j2se-project/3">
+            <attribute default="${includes}" name="includes"/>
+            <attribute default="${excludes}" name="excludes"/>
+            <attribute default="**" name="testincludes"/>
+            <attribute default="" name="testmethods"/>
+            <element name="customize" optional="true"/>
+            <sequential>
+                <j2seproject3:junit-prototype>
+                    <customizePrototype>
+                        <batchtest todir="${build.test.results.dir}">
+                            <fileset dir="${test.src.dir}" excludes="@{excludes},${excludes}" includes="@{includes}">
+                                <filename name="@{testincludes}"/>
+                            </fileset>
+                            <fileset dir="${build.test.classes.dir}" excludes="@{excludes},${excludes},${test.binaryexcludes}" includes="${test.binaryincludes}">
+                                <filename name="${test.binarytestincludes}"/>
+                            </fileset>
+                        </batchtest>
+                        <customize/>
+                    </customizePrototype>
+                </j2seproject3:junit-prototype>
+            </sequential>
+        </macrodef>
+    </target>
+    <target depends="-init-macrodef-junit-init,-init-macrodef-junit-single, -init-macrodef-junit-batch" if="${junit.available}" name="-init-macrodef-junit"/>
+    <target if="${testng.available}" name="-init-macrodef-testng">
+        <macrodef name="testng" uri="http://www.netbeans.org/ns/j2se-project/3">
+            <attribute default="${includes}" name="includes"/>
+            <attribute default="${excludes}" name="excludes"/>
+            <attribute default="**" name="testincludes"/>
+            <attribute default="" name="testmethods"/>
+            <element name="customize" optional="true"/>
+            <sequential>
+                <condition else="" property="testng.methods.arg" value="@{testincludes}.@{testmethods}">
+                    <isset property="test.method"/>
+                </condition>
+                <union id="test.set">
+                    <fileset dir="${test.src.dir}" excludes="@{excludes},**/*.xml,${excludes}" includes="@{includes}">
+                        <filename name="@{testincludes}"/>
+                    </fileset>
+                </union>
+                <taskdef classname="org.testng.TestNGAntTask" classpath="${run.test.classpath}" name="testng"/>
+                <testng classfilesetref="test.set" failureProperty="tests.failed" listeners="org.testng.reporters.VerboseReporter" methods="${testng.methods.arg}" mode="${testng.mode}" outputdir="${build.test.results.dir}" suitename="PRO192_LibraryManagement" testname="TestNG tests" workingDir="${work.dir}">
+                    <xmlfileset dir="${build.test.classes.dir}" includes="@{testincludes}"/>
+                    <propertyset>
+                        <propertyref prefix="test-sys-prop."/>
+                        <mapper from="test-sys-prop.*" to="*" type="glob"/>
+                    </propertyset>
+                    <classpath>
+                        <path path="${run.test.classpath}"/>
+                    </classpath>
+                    <jvmarg line="${endorsed.classpath.cmd.line.arg}"/>
+                    <customize/>
+                </testng>
+            </sequential>
+        </macrodef>
+    </target>
+    <target name="-init-macrodef-test-impl">
+        <macrodef name="test-impl" uri="http://www.netbeans.org/ns/j2se-project/3">
+            <attribute default="${includes}" name="includes"/>
+            <attribute default="${excludes}" name="excludes"/>
+            <attribute default="**" name="testincludes"/>
+            <attribute default="" name="testmethods"/>
+            <element implicit="true" name="customize" optional="true"/>
+            <sequential>
+                <echo>No tests executed.</echo>
+            </sequential>
+        </macrodef>
+    </target>
+    <target depends="-init-macrodef-junit" if="${junit.available}" name="-init-macrodef-junit-impl">
+        <macrodef name="test-impl" uri="http://www.netbeans.org/ns/j2se-project/3">
+            <attribute default="${includes}" name="includes"/>
+            <attribute default="${excludes}" name="excludes"/>
+            <attribute default="**" name="testincludes"/>
+            <attribute default="" name="testmethods"/>
+            <element implicit="true" name="customize" optional="true"/>
+            <sequential>
+                <j2seproject3:junit excludes="@{excludes}" includes="@{includes}" testincludes="@{testincludes}" testmethods="@{testmethods}">
+                    <customize/>
+                </j2seproject3:junit>
+            </sequential>
+        </macrodef>
+    </target>
+    <target depends="-init-macrodef-testng" if="${testng.available}" name="-init-macrodef-testng-impl">
+        <macrodef name="test-impl" uri="http://www.netbeans.org/ns/j2se-project/3">
+            <attribute default="${includes}" name="includes"/>
+            <attribute default="${excludes}" name="excludes"/>
+            <attribute default="**" name="testincludes"/>
+            <attribute default="" name="testmethods"/>
+            <element implicit="true" name="customize" optional="true"/>
+            <sequential>
+                <j2seproject3:testng excludes="@{excludes}" includes="@{includes}" testincludes="@{testincludes}" testmethods="@{testmethods}">
+                    <customize/>
+                </j2seproject3:testng>
+            </sequential>
+        </macrodef>
+    </target>
+    <target depends="-init-macrodef-test-impl,-init-macrodef-junit-impl,-init-macrodef-testng-impl" name="-init-macrodef-test">
+        <macrodef name="test" uri="http://www.netbeans.org/ns/j2se-project/3">
+            <attribute default="${includes}" name="includes"/>
+            <attribute default="${excludes}" name="excludes"/>
+            <attribute default="**" name="testincludes"/>
+            <attribute default="" name="testmethods"/>
+            <sequential>
+                <j2seproject3:test-impl excludes="@{excludes}" includes="@{includes}" testincludes="@{testincludes}" testmethods="@{testmethods}">
+                    <customize>
+                        <jvmarg line="${run.jvmargs}"/>
+                        <jvmarg line="${run.jvmargs.ide}"/>
+                    </customize>
+                </j2seproject3:test-impl>
+            </sequential>
+        </macrodef>
+    </target>
+    <target depends="-init-macrodef-junit" if="${junit.available}" name="-init-macrodef-junit-debug-impl">
+        <macrodef name="test-debug-impl" uri="http://www.netbeans.org/ns/j2se-project/3">
+            <attribute default="${includes}" name="includes"/>
+            <attribute default="${excludes}" name="excludes"/>
+            <attribute default="**" name="testincludes"/>
+            <attribute default="" name="testmethods"/>
+            <element name="customizeDebuggee" optional="true"/>
+            <sequential>
+                <j2seproject3:junit excludes="@{excludes}" includes="@{includes}" testincludes="@{testincludes}" testmethods="@{testmethods}">
+                    <customize>
+                        <jvmarg value="-agentlib:jdwp=transport=${debug-transport},address=${jpda.address}"/>
+                        <customizeDebuggee/>
+                    </customize>
+                </j2seproject3:junit>
+            </sequential>
+        </macrodef>
+    </target>
+    <target if="${testng.available}" name="-init-macrodef-testng-debug">
+        <macrodef name="testng-debug" uri="http://www.netbeans.org/ns/j2se-project/3">
+            <attribute default="${main.class}" name="testClass"/>
+            <attribute default="" name="testMethod"/>
+            <element name="customize2" optional="true"/>
+            <sequential>
+                <condition else="-testclass @{testClass}" property="test.class.or.method" value="-methods @{testClass}.@{testMethod}">
+                    <isset property="test.method"/>
+                </condition>
+                <condition else="-suitename PRO192_LibraryManagement -testname @{testClass} ${test.class.or.method}" property="testng.cmd.args" value="@{testClass}">
+                    <matches pattern=".*\.xml" string="@{testClass}"/>
+                </condition>
+                <delete dir="${build.test.results.dir}" quiet="true"/>
+                <mkdir dir="${build.test.results.dir}"/>
+                <j2seproject3:debug classname="org.testng.TestNG" classpath="${debug.test.classpath}">
+                    <customizeDebuggee>
+                        <customize2/>
+                        <jvmarg value="-ea"/>
+                        <arg line="${testng.debug.mode}"/>
+                        <arg line="-d ${build.test.results.dir}"/>
+                        <arg line="-listener org.testng.reporters.VerboseReporter"/>
+                        <arg line="${testng.cmd.args}"/>
+                    </customizeDebuggee>
+                </j2seproject3:debug>
+            </sequential>
+        </macrodef>
+    </target>
+    <target depends="-init-macrodef-testng-debug" if="${testng.available}" name="-init-macrodef-testng-debug-impl">
+        <macrodef name="testng-debug-impl" uri="http://www.netbeans.org/ns/j2se-project/3">
+            <attribute default="${main.class}" name="testClass"/>
+            <attribute default="" name="testMethod"/>
+            <element implicit="true" name="customize2" optional="true"/>
+            <sequential>
+                <j2seproject3:testng-debug testClass="@{testClass}" testMethod="@{testMethod}">
+                    <customize2/>
+                </j2seproject3:testng-debug>
+            </sequential>
+        </macrodef>
+    </target>
+    <target depends="-init-macrodef-junit-debug-impl" if="${junit.available}" name="-init-macrodef-test-debug-junit">
+        <macrodef name="test-debug" uri="http://www.netbeans.org/ns/j2se-project/3">
+            <attribute default="${includes}" name="includes"/>
+            <attribute default="${excludes}" name="excludes"/>
+            <attribute default="**" name="testincludes"/>
+            <attribute default="" name="testmethods"/>
+            <attribute default="${main.class}" name="testClass"/>
+            <attribute default="" name="testMethod"/>
+            <sequential>
+                <j2seproject3:test-debug-impl excludes="@{excludes}" includes="@{includes}" testincludes="@{testincludes}" testmethods="@{testmethods}">
+                    <customizeDebuggee>
+                        <jvmarg line="${run.jvmargs}"/>
+                        <jvmarg line="${run.jvmargs.ide}"/>
+                    </customizeDebuggee>
+                </j2seproject3:test-debug-impl>
+            </sequential>
+        </macrodef>
+    </target>
+    <target depends="-init-macrodef-testng-debug-impl" if="${testng.available}" name="-init-macrodef-test-debug-testng">
+        <macrodef name="test-debug" uri="http://www.netbeans.org/ns/j2se-project/3">
+            <attribute default="${includes}" name="includes"/>
+            <attribute default="${excludes}" name="excludes"/>
+            <attribute default="**" name="testincludes"/>
+            <attribute default="" name="testmethods"/>
+            <attribute default="${main.class}" name="testClass"/>
+            <attribute default="" name="testMethod"/>
+            <sequential>
+                <j2seproject3:testng-debug-impl testClass="@{testClass}" testMethod="@{testMethod}">
+                    <customize2>
+                        <syspropertyset>
+                            <propertyref prefix="test-sys-prop."/>
+                            <mapper from="test-sys-prop.*" to="*" type="glob"/>
+                        </syspropertyset>
+                    </customize2>
+                </j2seproject3:testng-debug-impl>
+            </sequential>
+        </macrodef>
+    </target>
+    <target depends="-init-macrodef-test-debug-junit,-init-macrodef-test-debug-testng" name="-init-macrodef-test-debug"/>
+    <!--
+                pre NB7.2 profiling section; consider it deprecated
+            -->
+    <target depends="-profile-pre-init, init, -profile-post-init, -profile-init-macrodef-profile, -profile-init-check" if="profiler.info.jvmargs.agent" name="profile-init"/>
+    <target if="profiler.info.jvmargs.agent" name="-profile-pre-init">
+        <!-- Empty placeholder for easier customization. -->
+        <!-- You can override this target in the ../build.xml file. -->
+    </target>
+    <target if="profiler.info.jvmargs.agent" name="-profile-post-init">
+        <!-- Empty placeholder for easier customization. -->
+        <!-- You can override this target in the ../build.xml file. -->
+    </target>
+    <target if="profiler.info.jvmargs.agent" name="-profile-init-macrodef-profile">
+        <macrodef name="resolve">
+            <attribute name="name"/>
+            <attribute name="value"/>
+            <sequential>
+                <property name="@{name}" value="${env.@{value}}"/>
+            </sequential>
+        </macrodef>
+        <macrodef name="profile">
+            <attribute default="${main.class}" name="classname"/>
+            <element name="customize" optional="true"/>
+            <sequential>
+                <property environment="env"/>
+                <resolve name="profiler.current.path" value="${profiler.info.pathvar}"/>
+                <java classname="@{classname}" dir="${profiler.info.dir}" failonerror="${java.failonerror}" fork="true" jvm="${profiler.info.jvm}">
+                    <jvmarg line="${endorsed.classpath.cmd.line.arg}"/>
+                    <jvmarg value="${profiler.info.jvmargs.agent}"/>
+                    <jvmarg line="${profiler.info.jvmargs}"/>
+                    <env key="${profiler.info.pathvar}" path="${profiler.info.agentpath}:${profiler.current.path}"/>
+                    <arg line="${application.args}"/>
+                    <classpath>
+                        <path path="${run.classpath}"/>
+                    </classpath>
+                    <syspropertyset>
+                        <propertyref prefix="run-sys-prop."/>
+                        <mapper from="run-sys-prop.*" to="*" type="glob"/>
+                    </syspropertyset>
+                    <customize/>
+                </java>
+            </sequential>
+        </macrodef>
+    </target>
+    <target depends="-profile-pre-init, init, -profile-post-init, -profile-init-macrodef-profile" if="profiler.info.jvmargs.agent" name="-profile-init-check">
+        <fail unless="profiler.info.jvm">Must set JVM to use for profiling in profiler.info.jvm</fail>
+        <fail unless="profiler.info.jvmargs.agent">Must set profiler agent JVM arguments in profiler.info.jvmargs.agent</fail>
+    </target>
+    <!--
+                end of pre NB7.2 profiling section
+            -->
+    <target depends="-init-debug-args" name="-init-macrodef-nbjpda">
+        <macrodef name="nbjpdastart" uri="http://www.netbeans.org/ns/j2se-project/1">
+            <attribute default="${main.class}" name="name"/>
+            <attribute default="${debug.modulepath}" name="modulepath"/>
+            <attribute default="${debug.classpath}" name="classpath"/>
+            <attribute default="" name="stopclassname"/>
+            <sequential>
+                <nbjpdastart addressproperty="jpda.address" name="@{name}" stopclassname="@{stopclassname}" transport="${debug-transport}">
+                    <modulepath>
+                        <path path="@{modulepath}"/>
+                    </modulepath>
+                    <classpath>
+                        <path path="@{classpath}"/>
+                    </classpath>
+                </nbjpdastart>
+            </sequential>
+        </macrodef>
+        <macrodef name="nbjpdareload" uri="http://www.netbeans.org/ns/j2se-project/1">
+            <attribute default="${build.classes.dir}" name="dir"/>
+            <sequential>
+                <nbjpdareload>
+                    <fileset dir="@{dir}" includes="${fix.classes}">
+                        <include name="${fix.includes}*.class"/>
+                    </fileset>
+                </nbjpdareload>
+            </sequential>
+        </macrodef>
+    </target>
+    <target name="-init-debug-args">
+        <condition else="dt_socket" property="debug-transport-by-os" value="dt_shmem">
+            <os family="windows"/>
+        </condition>
+        <condition else="${debug-transport-by-os}" property="debug-transport" value="${debug.transport}">
+            <isset property="debug.transport"/>
+        </condition>
+    </target>
+    <target depends="-init-debug-args" name="-init-macrodef-debug">
+        <macrodef name="debug" uri="http://www.netbeans.org/ns/j2se-project/3">
+            <attribute default="${module.name}" name="modulename"/>
+            <attribute default="${main.class}" name="classname"/>
+            <attribute default="${debug.modulepath}" name="modulepath"/>
+            <attribute default="${debug.classpath}" name="classpath"/>
+            <element name="customizeDebuggee" optional="true"/>
+            <sequential>
+                <j2seproject1:java classname="@{classname}" classpath="@{classpath}" modulename="@{modulename}" modulepath="@{modulepath}">
+                    <customize>
+                        <jvmarg value="-agentlib:jdwp=transport=${debug-transport},address=${jpda.address}"/>
+                        <customizeDebuggee/>
+                    </customize>
+                </j2seproject1:java>
+            </sequential>
+        </macrodef>
+    </target>
+    <target depends="-init-source-module-properties" if="named.module.internal" name="-init-macrodef-java-with-module">
+        <macrodef name="java" uri="http://www.netbeans.org/ns/j2se-project/1">
+            <attribute default="${module.name}" name="modulename"/>
+            <attribute default="${main.class}" name="classname"/>
+            <attribute default="${run.modulepath}" name="modulepath"/>
+            <attribute default="${run.upgrademodulepath}" name="upgrademodulepath"/>
+            <attribute default="${run.classpath}" name="classpath"/>
+            <attribute default="jvm" name="jvm"/>
+            <element name="customize" optional="true"/>
+            <sequential>
+                <java classname="@{classname}" dir="${work.dir}" failonerror="${java.failonerror}" fork="true" module="@{modulename}">
+                    <classpath>
+                        <path path="@{classpath}"/>
+                    </classpath>
+                    <modulepath>
+                        <pathelement path="@{modulepath}"/>
+                        <pathelement location="${module.build.classes.dir}"/>
+                    </modulepath>
+                    <upgrademodulepath>
+                        <path path="@{upgrademodulepath}"/>
+                    </upgrademodulepath>
+                    <jvmarg value="-Dfile.encoding=${runtime.encoding}"/>
+                    <redirector errorencoding="${runtime.encoding}" inputencoding="${runtime.encoding}" outputencoding="${runtime.encoding}"/>
+                    <jvmarg line="${run.jvmargs}"/>
+                    <jvmarg line="${run.jvmargs.ide}"/>
+                    <syspropertyset>
+                        <propertyref prefix="run-sys-prop."/>
+                        <mapper from="run-sys-prop.*" to="*" type="glob"/>
+                    </syspropertyset>
+                    <customize/>
+                </java>
+            </sequential>
+        </macrodef>
+    </target>
+    <target depends="-init-source-module-properties" if="unnamed.module.internal" name="-init-macrodef-java-with-unnamed-module">
+        <macrodef name="java" uri="http://www.netbeans.org/ns/j2se-project/1">
+            <attribute default="" name="modulename"/>
+            <attribute default="${main.class}" name="classname"/>
+            <attribute default="${run.modulepath}" name="modulepath"/>
+            <attribute default="${run.upgrademodulepath}" name="upgrademodulepath"/>
+            <attribute default="${run.classpath}" name="classpath"/>
+            <attribute default="jvm" name="jvm"/>
+            <element name="customize" optional="true"/>
+            <sequential>
+                <java classname="@{classname}" dir="${work.dir}" failonerror="${java.failonerror}" fork="true">
+                    <classpath>
+                        <path path="@{classpath}"/>
+                    </classpath>
+                    <modulepath>
+                        <path path="@{modulepath}"/>
+                    </modulepath>
+                    <upgrademodulepath>
+                        <path path="@{upgrademodulepath}"/>
+                    </upgrademodulepath>
+                    <jvmarg value="-Dfile.encoding=${runtime.encoding}"/>
+                    <redirector errorencoding="${runtime.encoding}" inputencoding="${runtime.encoding}" outputencoding="${runtime.encoding}"/>
+                    <jvmarg line="${run.jvmargs}"/>
+                    <jvmarg line="${run.jvmargs.ide}"/>
+                    <syspropertyset>
+                        <propertyref prefix="run-sys-prop."/>
+                        <mapper from="run-sys-prop.*" to="*" type="glob"/>
+                    </syspropertyset>
+                    <customize/>
+                </java>
+            </sequential>
+        </macrodef>
+    </target>
+    <target depends="-init-source-module-properties" name="-init-macrodef-java-without-module" unless="modules.supported.internal">
+        <macrodef name="java" uri="http://www.netbeans.org/ns/j2se-project/1">
+            <attribute default="" name="modulename"/>
+            <attribute default="${main.class}" name="classname"/>
+            <attribute default="" name="modulepath"/>
+            <attribute default="${run.classpath}" name="classpath"/>
+            <attribute default="jvm" name="jvm"/>
+            <element name="customize" optional="true"/>
+            <sequential>
+                <java classname="@{classname}" dir="${work.dir}" failonerror="${java.failonerror}" fork="true">
+                    <jvmarg line="${endorsed.classpath.cmd.line.arg}"/>
+                    <jvmarg value="-Dfile.encoding=${runtime.encoding}"/>
+                    <redirector errorencoding="${runtime.encoding}" inputencoding="${runtime.encoding}" outputencoding="${runtime.encoding}"/>
+                    <jvmarg line="${run.jvmargs}"/>
+                    <jvmarg line="${run.jvmargs.ide}"/>
+                    <classpath>
+                        <path path="@{classpath}"/>
+                    </classpath>
+                    <syspropertyset>
+                        <propertyref prefix="run-sys-prop."/>
+                        <mapper from="run-sys-prop.*" to="*" type="glob"/>
+                    </syspropertyset>
+                    <customize/>
+                </java>
+            </sequential>
+        </macrodef>
+    </target>
+    <target depends="-init-macrodef-java-with-module, -init-macrodef-java-with-unnamed-module, -init-macrodef-java-without-module" name="-init-macrodef-java"/>
+    <target name="-init-macrodef-copylibs">
+        <macrodef name="copylibs" uri="http://www.netbeans.org/ns/j2se-project/3">
+            <attribute default="${manifest.file}" name="manifest"/>
+            <element name="customize" optional="true"/>
+            <sequential>
+                <property location="${build.classes.dir}" name="build.classes.dir.resolved"/>
+                <pathconvert property="run.classpath.without.build.classes.dir">
+                    <path path="${run.classpath}"/>
+                    <map from="${build.classes.dir.resolved}" to=""/>
+                </pathconvert>
+                <pathconvert pathsep=" " property="jar.classpath">
+                    <path path="${run.classpath.without.build.classes.dir}"/>
+                    <chainedmapper>
+                        <flattenmapper/>
+                        <filtermapper>
+                            <replacestring from=" " to="%20"/>
+                        </filtermapper>
+                        <globmapper from="*" to="lib/*"/>
+                    </chainedmapper>
+                </pathconvert>
+                <taskdef classname="org.netbeans.modules.java.j2seproject.copylibstask.CopyLibs" classpath="${libs.CopyLibs.classpath}" name="copylibs"/>
+                <copylibs compress="${jar.compress}" excludeFromCopy="${copylibs.excludes}" index="${jar.index}" indexMetaInf="${jar.index.metainf}" jarfile="${dist.jar}" manifest="@{manifest}" manifestencoding="UTF-8" rebase="${copylibs.rebase}" runtimeclasspath="${run.classpath.without.build.classes.dir}">
+                    <fileset dir="${build.classes.dir}" excludes="${dist.archive.excludes}"/>
+                    <manifest>
+                        <attribute name="Class-Path" value="${jar.classpath}"/>
+                        <customize/>
+                    </manifest>
+                </copylibs>
+            </sequential>
+        </macrodef>
+    </target>
+    <target name="-init-presetdef-jar">
+        <presetdef name="jar" uri="http://www.netbeans.org/ns/j2se-project/1">
+            <jar compress="${jar.compress}" index="${jar.index}" jarfile="${dist.jar}" manifestencoding="UTF-8">
+                <j2seproject1:fileset dir="${build.classes.dir}" excludes="${dist.archive.excludes}"/>
+            </jar>
+        </presetdef>
+    </target>
+    <target name="-init-ap-cmdline-properties">
+        <property name="annotation.processing.enabled" value="true"/>
+        <property name="annotation.processing.processors.list" value=""/>
+        <property name="annotation.processing.processor.options" value=""/>
+        <property name="annotation.processing.run.all.processors" value="true"/>
+        <property name="javac.processorpath" value="${javac.classpath}"/>
+        <property name="javac.test.processorpath" value="${javac.test.classpath}"/>
+        <condition property="ap.supported.internal" value="true">
+            <not>
+                <matches pattern="1\.[0-5](\..*)?" string="${javac.source}"/>
+            </not>
+        </condition>
+    </target>
+    <target depends="-init-ap-cmdline-properties" if="ap.supported.internal" name="-init-ap-cmdline-supported">
+        <condition else="" property="ap.processors.internal" value="-processor ${annotation.processing.processors.list}">
+            <isfalse value="${annotation.processing.run.all.processors}"/>
+        </condition>
+        <condition else="" property="ap.proc.none.internal" value="-proc:none">
+            <isfalse value="${annotation.processing.enabled}"/>
+        </condition>
+    </target>
+    <target depends="-init-ap-cmdline-properties,-init-ap-cmdline-supported" name="-init-ap-cmdline">
+        <property name="ap.cmd.line.internal" value=""/>
+    </target>
+    <target depends="-pre-init,-init-private,-init-user,-init-project,-do-init,-post-init,-init-check,-init-macrodef-property,-init-macrodef-javac,-init-macrodef-test,-init-macrodef-test-debug,-init-macrodef-nbjpda,-init-macrodef-debug,-init-macrodef-java,-init-presetdef-jar,-init-ap-cmdline" name="init"/>
+    <!--
+                ===================
+                COMPILATION SECTION
+                ===================
+            -->
+    <target name="-deps-jar-init" unless="built-jar.properties">
+        <property location="${build.dir}/built-jar.properties" name="built-jar.properties"/>
+        <delete file="${built-jar.properties}" quiet="true"/>
+    </target>
+    <target if="already.built.jar.${basedir}" name="-warn-already-built-jar">
+        <echo level="warn" message="Cycle detected: PRO192_LibraryManagement was already built"/>
+    </target>
+    <target depends="init,-deps-jar-init" name="deps-jar" unless="no.deps">
+        <mkdir dir="${build.dir}"/>
+        <touch file="${built-jar.properties}" verbose="false"/>
+        <property file="${built-jar.properties}" prefix="already.built.jar."/>
+        <antcall target="-warn-already-built-jar"/>
+        <propertyfile file="${built-jar.properties}">
+            <entry key="${basedir}" value=""/>
+        </propertyfile>
+    </target>
+    <target depends="init,-check-automatic-build,-clean-after-automatic-build" name="-verify-automatic-build"/>
+    <target depends="init" name="-check-automatic-build">
+        <available file="${build.classes.dir}/.netbeans_automatic_build" property="netbeans.automatic.build"/>
+    </target>
+    <target depends="init" if="netbeans.automatic.build" name="-clean-after-automatic-build">
+        <antcall target="clean">
+            <param name="no.dependencies" value="true"/>
+        </antcall>
+    </target>
+    <target depends="init,deps-jar" name="-pre-pre-compile">
+        <mkdir dir="${build.classes.dir}"/>
+    </target>
+    <target name="-pre-compile">
+        <!-- Empty placeholder for easier customization. -->
+        <!-- You can override this target in the ../build.xml file. -->
+    </target>
+    <target if="do.depend.true" name="-compile-depend">
+        <pathconvert property="build.generated.subdirs">
+            <dirset dir="${build.generated.sources.dir}" erroronmissingdir="false">
+                <include name="*"/>
+            </dirset>
+        </pathconvert>
+        <j2seproject3:depend srcdir="${src.dir}:${build.generated.subdirs}"/>
+    </target>
+    <target depends="init,deps-jar,-pre-pre-compile,-pre-compile, -copy-persistence-xml,-compile-depend" if="have.sources" name="-do-compile">
+        <j2seproject3:javac gensrcdir="${build.generated.sources.dir}"/>
+        <copy todir="${build.classes.dir}">
+            <fileset dir="${src.dir}" excludes="${build.classes.excludes},${excludes}" includes="${includes}"/>
+        </copy>
+    </target>
+    <target if="has.persistence.xml" name="-copy-persistence-xml">
+        <mkdir dir="${build.classes.dir}/META-INF"/>
+        <copy todir="${build.classes.dir}/META-INF">
+            <fileset dir="${meta.inf.dir}" includes="persistence.xml orm.xml"/>
+        </copy>
+    </target>
+    <target name="-post-compile">
+        <!-- Empty placeholder for easier customization. -->
+        <!-- You can override this target in the ../build.xml file. -->
+    </target>
+    <target depends="init,deps-jar,-verify-automatic-build,-pre-pre-compile,-pre-compile,-do-compile,-post-compile" description="Compile project." name="compile"/>
+    <target name="-pre-compile-single">
+        <!-- Empty placeholder for easier customization. -->
+        <!-- You can override this target in the ../build.xml file. -->
+    </target>
+    <target depends="init,deps-jar,-pre-pre-compile" name="-do-compile-single">
+        <fail unless="javac.includes">Must select some files in the IDE or set javac.includes</fail>
+        <j2seproject3:force-recompile/>
+        <j2seproject3:javac excludes="" gensrcdir="${build.generated.sources.dir}" includes="${javac.includes}, module-info.java" sourcepath="${src.dir}"/>
+    </target>
+    <target name="-post-compile-single">
+        <!-- Empty placeholder for easier customization. -->
+        <!-- You can override this target in the ../build.xml file. -->
+    </target>
+    <target depends="init,deps-jar,-verify-automatic-build,-pre-pre-compile,-pre-compile-single,-do-compile-single,-post-compile-single" name="compile-single"/>
+    <!--
+                ====================
+                JAR BUILDING SECTION
+                ====================
+            -->
+    <target depends="init" name="-pre-pre-jar">
+        <dirname file="${dist.jar}" property="dist.jar.dir"/>
+        <mkdir dir="${dist.jar.dir}"/>
+    </target>
+    <target name="-pre-jar">
+        <!-- Empty placeholder for easier customization. -->
+        <!-- You can override this target in the ../build.xml file. -->
+    </target>
+    <target depends="init,compile" name="-check-module-main-class">
+        <pathconvert property="main.class.file">
+            <string value="${main.class}"/>
+            <unpackagemapper from="*" to="*.class"/>
+        </pathconvert>
+        <condition property="do.module.main.class">
+            <and>
+                <isset property="main.class.available"/>
+                <available file="${build.classes.dir}/module-info.class"/>
+                <available file="${build.classes.dir}/${main.class.file}"/>
+                <isset property="libs.CopyLibs.classpath"/>
+                <available classname="org.netbeans.modules.java.j2seproject.moduletask.ModuleMainClass" classpath="${libs.CopyLibs.classpath}"/>
+            </and>
+        </condition>
+    </target>
+    <target depends="-check-module-main-class" if="do.module.main.class" name="-set-module-main-class">
+        <taskdef classname="org.netbeans.modules.java.j2seproject.moduletask.ModuleMainClass" classpath="${libs.CopyLibs.classpath}" name="modulemainclass"/>
+        <modulemainclass failonerror="false" mainclass="${main.class}" moduleinfo="${build.classes.dir}/module-info.class"/>
+    </target>
+    <target depends="init" if="do.archive" name="-do-jar-create-manifest" unless="manifest.available">
+        <tempfile deleteonexit="true" destdir="${build.dir}" property="tmp.manifest.file"/>
+        <touch file="${tmp.manifest.file}" verbose="false"/>
+    </target>
+    <target depends="init" if="do.archive+manifest.available" name="-do-jar-copy-manifest">
+        <tempfile deleteonexit="true" destdir="${build.dir}" property="tmp.manifest.file"/>
+        <copy encoding="${manifest.encoding}" file="${manifest.file}" outputencoding="UTF-8" tofile="${tmp.manifest.file}"/>
+    </target>
+    <target depends="init,-do-jar-create-manifest,-do-jar-copy-manifest" if="do.archive+main.class.available" name="-do-jar-set-mainclass">
+        <manifest encoding="UTF-8" file="${tmp.manifest.file}" mode="update">
+            <attribute name="Main-Class" value="${main.class}"/>
+        </manifest>
+    </target>
+    <target depends="init,-do-jar-create-manifest,-do-jar-copy-manifest" if="do.archive+profile.available" name="-do-jar-set-profile">
+        <manifest encoding="UTF-8" file="${tmp.manifest.file}" mode="update">
+            <attribute name="Profile" value="${javac.profile}"/>
+        </manifest>
+    </target>
+    <target depends="init,-do-jar-create-manifest,-do-jar-copy-manifest" if="do.archive+splashscreen.available" name="-do-jar-set-splashscreen">
+        <basename file="${application.splash}" property="splashscreen.basename"/>
+        <mkdir dir="${build.classes.dir}/META-INF"/>
+        <copy failonerror="false" file="${application.splash}" todir="${build.classes.dir}/META-INF"/>
+        <manifest encoding="UTF-8" file="${tmp.manifest.file}" mode="update">
+            <attribute name="SplashScreen-Image" value="META-INF/${splashscreen.basename}"/>
+        </manifest>
+    </target>
+    <target depends="init,compile" name="-check-do-mkdist">
+        <condition property="do.mkdist">
+            <and>
+                <isset property="do.archive"/>
+                <isset property="libs.CopyLibs.classpath"/>
+                <not>
+                    <istrue value="${mkdist.disabled}"/>
+                </not>
+                <not>
+                    <available file="${build.classes.dir}/module-info.class"/>
+                </not>
+            </and>
+        </condition>
+    </target>
+    <target depends="init,-init-macrodef-copylibs,compile,-pre-pre-jar,-pre-jar,-do-jar-create-manifest,-do-jar-copy-manifest,-do-jar-set-mainclass,-do-jar-set-profile,-do-jar-set-splashscreen,-check-do-mkdist" if="do.mkdist" name="-do-jar-copylibs">
+        <j2seproject3:copylibs manifest="${tmp.manifest.file}"/>
+        <echo level="info">To run this application from the command line without Ant, try:</echo>
+        <property location="${dist.jar}" name="dist.jar.resolved"/>
+        <echo level="info">java -jar "${dist.jar.resolved}"</echo>
+    </target>
+    <target depends="init,compile,-pre-pre-jar,-pre-jar,-do-jar-create-manifest,-do-jar-copy-manifest,-do-jar-set-mainclass,-do-jar-set-profile,-do-jar-set-splashscreen,-check-do-mkdist" if="do.archive" name="-do-jar-jar" unless="do.mkdist">
+        <j2seproject1:jar manifest="${tmp.manifest.file}"/>
+        <property location="${build.classes.dir}" name="build.classes.dir.resolved"/>
+        <property location="${dist.jar}" name="dist.jar.resolved"/>
+        <condition else="${dist.jar.resolved}" property="jar.usage.message.class.path.replacement" value="">
+            <isset property="named.module.internal"/>
+        </condition>
+        <pathconvert property="run.classpath.with.dist.jar">
+            <path path="${run.classpath}"/>
+            <map from="${build.classes.dir.resolved}" to="${jar.usage.message.class.path.replacement}"/>
+        </pathconvert>
+        <pathconvert property="run.modulepath.with.dist.jar">
+            <path location="${dist.jar.resolved}"/>
+            <path path="${run.modulepath}"/>
+            <map from="${build.classes.dir.resolved}" to="${dist.jar.resolved}"/>
+        </pathconvert>
+        <condition else="${run.modulepath}" property="jar.usage.message.run.modulepath.with.dist.jar" value="${run.modulepath.with.dist.jar}">
+            <isset property="named.module.internal"/>
+        </condition>
+        <condition else="" property="jar.usage.message.module.path" value=" -p ${jar.usage.message.run.modulepath.with.dist.jar}">
+            <and>
+                <isset property="modules.supported.internal"/>
+                <length length="0" string="${jar.usage.message.run.modulepath.with.dist.jar}" when="greater"/>
+            </and>
+        </condition>
+        <condition else="" property="jar.usage.message.class.path" value=" -cp ${run.classpath.with.dist.jar}">
+            <length length="0" string="${run.classpath.with.dist.jar}" when="greater"/>
+        </condition>
+        <condition else="/${main.class}" property="jar.usage.message.main.class.class.selector" value="">
+            <isset property="do.module.main.class"/>
+        </condition>
+        <condition else=" ${main.class}" property="jar.usage.message.main.class" value=" -m ${module.name}${jar.usage.message.main.class.class.selector}">
+            <isset property="named.module.internal"/>
+        </condition>
+        <condition else="" property="jar.usage.message" value="To run this application from the command line without Ant, try:${line.separator}${platform.java}${jar.usage.message.module.path}${jar.usage.message.class.path}${jar.usage.message.main.class}">
+            <isset property="main.class.available"/>
+        </condition>
+        <condition else="debug" property="jar.usage.level" value="info">
+            <isset property="main.class.available"/>
+        </condition>
+        <echo level="${jar.usage.level}" message="${jar.usage.message}"/>
+    </target>
+    <target depends="-do-jar-copylibs" if="do.archive" name="-do-jar-delete-manifest">
+        <delete>
+            <fileset file="${tmp.manifest.file}"/>
+        </delete>
+    </target>
+    <target depends="init,compile,-pre-pre-jar,-pre-jar,-do-jar-create-manifest,-do-jar-copy-manifest,-do-jar-set-mainclass,-do-jar-set-profile,-do-jar-set-splashscreen,-do-jar-jar,-do-jar-delete-manifest" name="-do-jar-without-libraries"/>
+    <target depends="init,compile,-pre-pre-jar,-pre-jar,-do-jar-create-manifest,-do-jar-copy-manifest,-do-jar-set-mainclass,-do-jar-set-profile,-do-jar-set-splashscreen,-do-jar-copylibs,-do-jar-delete-manifest" name="-do-jar-with-libraries"/>
+    <target name="-post-jar">
+        <!-- Empty placeholder for easier customization. -->
+        <!-- You can override this target in the ../build.xml file. -->
+    </target>
+    <target depends="init,compile,-pre-jar,-set-module-main-class,-do-jar-without-libraries,-do-jar-with-libraries,-post-jar" name="-do-jar"/>
+    <target depends="init,compile,-pre-jar,-do-jar,-post-jar,deploy" description="Build JAR." name="jar"/>
+    <!--
+                =================
+                DEPLOY SECTION
+                =================
+            -->
+    <target name="-pre-deploy">
+        <!-- Empty placeholder for easier customization. -->
+        <!-- You can override this target in the ../build.xml file. -->
+    </target>
+    <target depends="init" name="-check-jlink">
+        <condition property="do.jlink.internal">
+            <and>
+                <istrue value="${do.jlink}"/>
+                <isset property="do.archive"/>
+                <isset property="named.module.internal"/>
+            </and>
+        </condition>
+    </target>
+    <target depends="init,-do-jar,-post-jar,-pre-deploy,-check-jlink" if="do.jlink.internal" name="-do-deploy">
+        <delete dir="${dist.jlink.dir}" failonerror="false" quiet="true"/>
+        <property name="jlink.launcher.name" value="${application.title}"/>
+        <condition else="${module.name}" property="jlink.add.modules" value="${module.name},${jlink.additionalmodules}">
+            <and>
+                <isset property="jlink.additionalmodules"/>
+                <length length="0" string="${jlink.additionalmodules}" when="greater"/>
+            </and>
+        </condition>
+        <condition property="jlink.do.strip.internal">
+            <and>
+                <isset property="jlink.strip"/>
+                <istrue value="${jlink.strip}"/>
+            </and>
+        </condition>
+        <condition property="jlink.do.additionalparam.internal">
+            <and>
+                <isset property="jlink.additionalparam"/>
+                <length length="0" string="${jlink.additionalparam}" when="greater"/>
+            </and>
+        </condition>
+        <condition property="jlink.do.launcher.internal">
+            <and>
+                <istrue value="${jlink.launcher}"/>
+                <isset property="main.class.available"/>
+            </and>
+        </condition>
+        <property name="platform.jlink" value="${jdk.home}/bin/jlink"/>
+        <property name="jlink.systemmodules.internal" value="${jdk.home}/jmods"/>
+        <exec executable="${platform.jlink}">
+            <arg value="--module-path"/>
+            <arg path="${jlink.systemmodules.internal}:${run.modulepath}:${dist.jar}"/>
+            <arg value="--add-modules"/>
+            <arg value="${jlink.add.modules}"/>
+            <arg if:set="jlink.do.strip.internal" value="--strip-debug"/>
+            <arg if:set="jlink.do.launcher.internal" value="--launcher"/>
+            <arg if:set="jlink.do.launcher.internal" value="${jlink.launcher.name}=${module.name}/${main.class}"/>
+            <arg if:set="jlink.do.additionalparam.internal" line="${jlink.additionalparam}"/>
+            <arg value="--output"/>
+            <arg value="${dist.jlink.output}"/>
+        </exec>
+    </target>
+    <target name="-post-deploy">
+        <!-- Empty placeholder for easier customization. -->
+        <!-- You can override this target in the ../build.xml file. -->
+    </target>
+    <target depends="-do-jar,-post-jar,-pre-deploy,-do-deploy,-post-deploy" name="deploy"/>
+    <!--
+                =================
+                EXECUTION SECTION
+                =================
+            -->
+    <target depends="init,compile" description="Run a main class." name="run">
+        <j2seproject1:java>
+            <customize>
+                <arg line="${application.args}"/>
+            </customize>
+        </j2seproject1:java>
+    </target>
+    <target name="-do-not-recompile">
+        <property name="javac.includes.binary" value=""/>
+    </target>
+    <target depends="init,compile-single" name="run-single">
+        <fail unless="run.class">Must select one file in the IDE or set run.class</fail>
+        <j2seproject1:java classname="${run.class}"/>
+    </target>
+    <target depends="init,compile-test-single" name="run-test-with-main">
+        <fail unless="run.class">Must select one file in the IDE or set run.class</fail>
+        <j2seproject1:java classname="${run.class}" classpath="${run.test.classpath}"/>
+    </target>
+    <!--
+                =================
+                DEBUGGING SECTION
+                =================
+            -->
+    <target depends="init" if="netbeans.home" name="-debug-start-debugger">
+        <j2seproject1:nbjpdastart name="${debug.class}"/>
+    </target>
+    <target depends="init" if="netbeans.home" name="-debug-start-debugger-main-test">
+        <j2seproject1:nbjpdastart classpath="${debug.test.classpath}" name="${debug.class}"/>
+    </target>
+    <target depends="init,compile" name="-debug-start-debuggee">
+        <j2seproject3:debug>
+            <customizeDebuggee>
+                <arg line="${application.args}"/>
+            </customizeDebuggee>
+        </j2seproject3:debug>
+    </target>
+    <target depends="init,compile,-debug-start-debugger,-debug-start-debuggee" description="Debug project in IDE." if="netbeans.home" name="debug"/>
+    <target depends="init" if="netbeans.home" name="-debug-start-debugger-stepinto">
+        <j2seproject1:nbjpdastart stopclassname="${main.class}"/>
+    </target>
+    <target depends="init,compile,-debug-start-debugger-stepinto,-debug-start-debuggee" if="netbeans.home" name="debug-stepinto"/>
+    <target depends="init,compile-single" if="netbeans.home" name="-debug-start-debuggee-single">
+        <fail unless="debug.class">Must select one file in the IDE or set debug.class</fail>
+        <j2seproject3:debug classname="${debug.class}"/>
+    </target>
+    <target depends="init,compile-single,-debug-start-debugger,-debug-start-debuggee-single" if="netbeans.home" name="debug-single"/>
+    <target depends="init,compile-test-single" if="netbeans.home" name="-debug-start-debuggee-main-test">
+        <fail unless="debug.class">Must select one file in the IDE or set debug.class</fail>
+        <j2seproject3:debug classname="${debug.class}" classpath="${debug.test.classpath}"/>
+    </target>
+    <target depends="init,compile-test-single,-debug-start-debugger-main-test,-debug-start-debuggee-main-test" if="netbeans.home" name="debug-test-with-main"/>
+    <target depends="init" name="-pre-debug-fix">
+        <fail unless="fix.includes">Must set fix.includes</fail>
+        <property name="javac.includes" value="${fix.includes}.java"/>
+    </target>
+    <target depends="init,-pre-debug-fix,compile-single" if="netbeans.home" name="-do-debug-fix">
+        <j2seproject1:nbjpdareload/>
+    </target>
+    <target depends="init,-pre-debug-fix,-do-debug-fix" if="netbeans.home" name="debug-fix"/>
+    <!--
+                =================
+                PROFILING SECTION
+                =================
+            -->
+    <!--
+                pre NB7.2 profiler integration
+            -->
+    <target depends="profile-init,compile" description="Profile a project in the IDE." if="profiler.info.jvmargs.agent" name="-profile-pre72">
+        <fail unless="netbeans.home">This target only works when run from inside the NetBeans IDE.</fail>
+        <nbprofiledirect>
+            <classpath>
+                <path path="${run.classpath}"/>
+            </classpath>
+        </nbprofiledirect>
+        <profile/>
+    </target>
+    <target depends="profile-init,compile-single" description="Profile a selected class in the IDE." if="profiler.info.jvmargs.agent" name="-profile-single-pre72">
+        <fail unless="profile.class">Must select one file in the IDE or set profile.class</fail>
+        <fail unless="netbeans.home">This target only works when run from inside the NetBeans IDE.</fail>
+        <nbprofiledirect>
+            <classpath>
+                <path path="${run.classpath}"/>
+            </classpath>
+        </nbprofiledirect>
+        <profile classname="${profile.class}"/>
+    </target>
+    <target depends="profile-init,compile-single" if="profiler.info.jvmargs.agent" name="-profile-applet-pre72">
+        <fail unless="netbeans.home">This target only works when run from inside the NetBeans IDE.</fail>
+        <nbprofiledirect>
+            <classpath>
+                <path path="${run.classpath}"/>
+            </classpath>
+        </nbprofiledirect>
+        <profile classname="sun.applet.AppletViewer">
+            <customize>
+                <arg value="${applet.url}"/>
+            </customize>
+        </profile>
+    </target>
+    <target depends="-init-macrodef-junit,profile-init,compile-test-single" if="profiler.info.jvmargs.agent" name="-profile-test-single-pre72">
+        <fail unless="netbeans.home">This target only works when run from inside the NetBeans IDE.</fail>
+        <nbprofiledirect>
+            <classpath>
+                <path path="${run.test.classpath}"/>
+            </classpath>
+        </nbprofiledirect>
+        <j2seproject3:junit excludes="${excludes}" includes="${includes}" testincludes="${profile.class}" testmethods="">
+            <customize>
+                <jvmarg value="-agentlib:jdwp=transport=${debug-transport},address=${jpda.address}"/>
+                <env key="${profiler.info.pathvar}" path="${profiler.info.agentpath}:${profiler.current.path}"/>
+                <jvmarg value="${profiler.info.jvmargs.agent}"/>
+                <jvmarg line="${profiler.info.jvmargs}"/>
+                <classpath>
+                    <path path="${run.test.classpath}"/>
+                </classpath>
+            </customize>
+        </j2seproject3:junit>
+    </target>
+    <!--
+                end of pre NB72 profiling section
+            -->
+    <target if="netbeans.home" name="-profile-check">
+        <condition property="profiler.configured">
+            <or>
+                <contains casesensitive="true" string="${run.jvmargs.ide}" substring="-agentpath:"/>
+                <contains casesensitive="true" string="${run.jvmargs.ide}" substring="-javaagent:"/>
+            </or>
+        </condition>
+    </target>
+    <target depends="-profile-check,-profile-pre72" description="Profile a project in the IDE." if="profiler.configured" name="profile" unless="profiler.info.jvmargs.agent">
+        <startprofiler/>
+        <antcall target="run"/>
+    </target>
+    <target depends="-profile-check,-profile-single-pre72" description="Profile a selected class in the IDE." if="profiler.configured" name="profile-single" unless="profiler.info.jvmargs.agent">
+        <fail unless="run.class">Must select one file in the IDE or set run.class</fail>
+        <startprofiler/>
+        <antcall target="run-single"/>
+    </target>
+    <target depends="-profile-test-single-pre72" description="Profile a selected test in the IDE." name="profile-test-single"/>
+    <target depends="-profile-check" description="Profile a selected test in the IDE." if="profiler.configured" name="profile-test" unless="profiler.info.jvmargs">
+        <fail unless="test.includes">Must select some files in the IDE or set test.includes</fail>
+        <startprofiler/>
+        <antcall target="test-single"/>
+    </target>
+    <target depends="-profile-check" description="Profile a selected class in the IDE." if="profiler.configured" name="profile-test-with-main">
+        <fail unless="run.class">Must select one file in the IDE or set run.class</fail>
+        <startprofiler/>
+        <antcall target="run-test-with-main"/>
+    </target>
+    <target depends="-profile-check,-profile-applet-pre72" if="profiler.configured" name="profile-applet" unless="profiler.info.jvmargs.agent">
+        <fail unless="applet.url">Must select one file in the IDE or set applet.url</fail>
+        <startprofiler/>
+        <antcall target="run-applet"/>
+    </target>
+    <!--
+                ===============
+                JAVADOC SECTION
+                ===============
+            -->
+    <target depends="init" if="have.sources" name="-javadoc-build">
+        <mkdir dir="${dist.javadoc.dir}"/>
+        <condition else="" property="javadoc.endorsed.classpath.cmd.line.arg" value="-J${endorsed.classpath.cmd.line.arg}">
+            <and>
+                <isset property="endorsed.classpath.cmd.line.arg"/>
+                <not>
+                    <equals arg1="${endorsed.classpath.cmd.line.arg}" arg2=""/>
+                </not>
+            </and>
+        </condition>
+        <condition else="" property="bug5101868workaround" value="*.java">
+            <matches pattern="1\.[56](\..*)?" string="${java.version}"/>
+        </condition>
+        <condition else="" property="javadoc.html5.cmd.line.arg" value="-html5">
+            <and>
+                <isset property="javadoc.html5"/>
+                <available file="${jdk.home}${file.separator}lib${file.separator}jrt-fs.jar"/>
+            </and>
+        </condition>
+        <javadoc additionalparam="-J-Dfile.encoding=${file.encoding} ${javadoc.additionalparam}" author="${javadoc.author}" charset="UTF-8" destdir="${dist.javadoc.dir}" docencoding="UTF-8" encoding="${javadoc.encoding.used}" failonerror="true" noindex="${javadoc.noindex}" nonavbar="${javadoc.nonavbar}" notree="${javadoc.notree}" private="${javadoc.private}" source="${javac.source}" splitindex="${javadoc.splitindex}" use="${javadoc.use}" useexternalfile="true" version="${javadoc.version}" windowtitle="${javadoc.windowtitle}">
+            <classpath>
+                <path path="${javac.classpath}"/>
+            </classpath>
+            <fileset dir="${src.dir}" excludes="${bug5101868workaround},${excludes}" includes="${includes}">
+                <filename name="**/*.java"/>
+            </fileset>
+            <fileset dir="${build.generated.sources.dir}" erroronmissingdir="false">
+                <include name="**/*.java"/>
+                <exclude name="*.java"/>
+            </fileset>
+            <arg line="${javadoc.endorsed.classpath.cmd.line.arg}"/>
+            <arg line="${javadoc.html5.cmd.line.arg}"/>
+        </javadoc>
+        <copy todir="${dist.javadoc.dir}">
+            <fileset dir="${src.dir}" excludes="${excludes}" includes="${includes}">
+                <filename name="**/doc-files/**"/>
+            </fileset>
+            <fileset dir="${build.generated.sources.dir}" erroronmissingdir="false">
+                <include name="**/doc-files/**"/>
+            </fileset>
+        </copy>
+    </target>
+    <target depends="init,-javadoc-build" if="netbeans.home" name="-javadoc-browse" unless="no.javadoc.preview">
+        <nbbrowse file="${dist.javadoc.dir}/index.html"/>
+    </target>
+    <target depends="init,-javadoc-build,-javadoc-browse" description="Build Javadoc." name="javadoc"/>
+    <!--
+                =========================
+                TEST COMPILATION SECTION
+                =========================
+            -->
+    <target depends="init,compile" if="have.tests" name="-pre-pre-compile-test">
+        <mkdir dir="${build.test.classes.dir}"/>
+    </target>
+    <target name="-pre-compile-test">
+        <!-- Empty placeholder for easier customization. -->
+        <!-- You can override this target in the ../build.xml file. -->
+    </target>
+    <target depends="-init-source-module-properties" if="named.module.internal" name="-init-test-javac-module-properties-with-module">
+        <j2seproject3:modulename property="test.module.name" sourcepath="${test.src.dir}"/>
+        <condition else="${empty.dir}" property="javac.test.sourcepath" value="${test.src.dir}">
+            <and>
+                <isset property="test.module.name"/>
+                <length length="0" string="${test.module.name}" when="greater"/>
+            </and>
+        </condition>
+        <condition else="--patch-module ${module.name}=${test.src.dir} --add-reads ${module.name}=ALL-UNNAMED" property="javac.test.compilerargs" value="--add-reads ${test.module.name}=ALL-UNNAMED">
+            <and>
+                <isset property="test.module.name"/>
+                <length length="0" string="${test.module.name}" when="greater"/>
+            </and>
+        </condition>
+    </target>
+    <target depends="-init-source-module-properties" if="named.module.internal" name="-init-test-run-module-properties">
+        <condition else="${module.name}" property="run.test.addexport.source.module.internal" value="${test.module.name}">
+            <and>
+                <isset property="test.module.name"/>
+                <length length="0" string="${test.module.name}" when="greater"/>
+            </and>
+        </condition>
+        <fileset dir="${build.test.classes.dir}" id="run.test.packages.internal" includes="**/*.class"/>
+        <property location="${build.test.classes.dir}" name="build.test.classes.dir.abs.internal"/>
+        <pathconvert pathsep=" " property="run.test.addexports.internal" refid="run.test.packages.internal">
+            <chainedmapper>
+                <regexpmapper from="^(.*)\Q${file.separator}\E.*\.class$$" to="\1"/>
+                <filtermapper>
+                    <uniqfilter/>
+                    <replacestring from="${build.test.classes.dir.abs.internal}" to=""/>
+                </filtermapper>
+                <cutdirsmapper dirs="1"/>
+                <packagemapper from="*" to="--add-exports ${run.test.addexport.source.module.internal}/*=ALL-UNNAMED"/>
+            </chainedmapper>
+        </pathconvert>
+        <condition else="--patch-module ${module.name}=${build.test.classes.dir} --add-modules ${module.name} --add-reads ${module.name}=ALL-UNNAMED ${run.test.addexports.internal}" property="run.test.jvmargs" value="--add-modules ${test.module.name} --add-reads ${test.module.name}=ALL-UNNAMED ${run.test.addexports.internal}">
+            <and>
+                <isset property="test.module.name"/>
+                <length length="0" string="${test.module.name}" when="greater"/>
+            </and>
+        </condition>
+    </target>
+    <target depends="-init-source-module-properties" name="-init-test-module-properties-without-module" unless="named.module.internal">
+        <property name="javac.test.sourcepath" value="${empty.dir}"/>
+        <property name="javac.test.compilerargs" value=""/>
+        <property name="run.test.jvmargs" value=""/>
+    </target>
+    <target depends="-init-test-javac-module-properties-with-module,-init-test-module-properties-without-module" name="-init-test-module-properties"/>
+    <target if="do.depend.true" name="-compile-test-depend">
+        <j2seproject3:depend classpath="${javac.test.classpath}" destdir="${build.test.classes.dir}" srcdir="${test.src.dir}"/>
+    </target>
+    <target depends="init,deps-jar,compile,-init-test-module-properties,-pre-pre-compile-test,-pre-compile-test,-compile-test-depend" if="have.tests" name="-do-compile-test">
+        <j2seproject3:javac apgeneratedsrcdir="${build.test.classes.dir}" classpath="${javac.test.classpath}" debug="true" destdir="${build.test.classes.dir}" modulepath="${javac.test.modulepath}" processorpath="${javac.test.processorpath}" sourcepath="${javac.test.sourcepath}" srcdir="${test.src.dir}">
+            <customize>
+                <compilerarg line="${javac.test.compilerargs}"/>
+            </customize>
+        </j2seproject3:javac>
+        <copy todir="${build.test.classes.dir}">
+            <fileset dir="${test.src.dir}" excludes="${build.classes.excludes},${excludes}" includes="${includes}"/>
+        </copy>
+    </target>
+    <target name="-post-compile-test">
+        <!-- Empty placeholder for easier customization. -->
+        <!-- You can override this target in the ../build.xml file. -->
+    </target>
+    <target depends="init,compile,-pre-pre-compile-test,-pre-compile-test,-do-compile-test,-post-compile-test" name="compile-test"/>
+    <target name="-pre-compile-test-single">
+        <!-- Empty placeholder for easier customization. -->
+        <!-- You can override this target in the ../build.xml file. -->
+    </target>
+    <target depends="init,deps-jar,compile,-init-test-module-properties,-pre-pre-compile-test,-pre-compile-test-single" if="have.tests" name="-do-compile-test-single">
+        <fail unless="javac.includes">Must select some files in the IDE or set javac.includes</fail>
+        <j2seproject3:force-recompile destdir="${build.test.classes.dir}"/>
+        <j2seproject3:javac apgeneratedsrcdir="${build.test.classes.dir}" classpath="${javac.test.classpath}" debug="true" destdir="${build.test.classes.dir}" excludes="" includes="${javac.includes}, module-info.java" modulepath="${javac.test.modulepath}" processorpath="${javac.test.processorpath}" sourcepath="${test.src.dir}" srcdir="${test.src.dir}">
+            <customize>
+                <compilerarg line="${javac.test.compilerargs}"/>
+            </customize>
+        </j2seproject3:javac>
+        <copy todir="${build.test.classes.dir}">
+            <fileset dir="${test.src.dir}" excludes="${build.classes.excludes},${excludes}" includes="${includes}"/>
+        </copy>
+    </target>
+    <target name="-post-compile-test-single">
+        <!-- Empty placeholder for easier customization. -->
+        <!-- You can override this target in the ../build.xml file. -->
+    </target>
+    <target depends="init,compile,-pre-pre-compile-test,-pre-compile-test-single,-do-compile-test-single,-post-compile-test-single" name="compile-test-single"/>
+    <!--
+                =======================
+                TEST EXECUTION SECTION
+                =======================
+            -->
+    <target depends="init" if="have.tests" name="-pre-test-run">
+        <mkdir dir="${build.test.results.dir}"/>
+    </target>
+    <target depends="init,compile-test,-init-test-run-module-properties,-pre-test-run" if="have.tests" name="-do-test-run">
+        <j2seproject3:test includes="${includes}" testincludes="**/*Test.java"/>
+    </target>
+    <target depends="init,compile-test,-pre-test-run,-do-test-run" if="have.tests" name="-post-test-run">
+        <fail if="tests.failed" unless="ignore.failing.tests">Some tests failed; see details above.</fail>
+    </target>
+    <target depends="init" if="have.tests" name="test-report"/>
+    <target depends="init" if="netbeans.home+have.tests" name="-test-browse"/>
+    <target depends="init,compile-test,-pre-test-run,-do-test-run,test-report,-post-test-run,-test-browse" description="Run unit tests." name="test"/>
+    <target depends="init" if="have.tests" name="-pre-test-run-single">
+        <mkdir dir="${build.test.results.dir}"/>
+    </target>
+    <target depends="init,compile-test-single,-init-test-run-module-properties,-pre-test-run-single" if="have.tests" name="-do-test-run-single">
+        <fail unless="test.includes">Must select some files in the IDE or set test.includes</fail>
+        <j2seproject3:test excludes="" includes="${test.includes}" testincludes="${test.includes}"/>
+    </target>
+    <target depends="init,compile-test-single,-pre-test-run-single,-do-test-run-single" if="have.tests" name="-post-test-run-single">
+        <fail if="tests.failed" unless="ignore.failing.tests">Some tests failed; see details above.</fail>
+    </target>
+    <target depends="init,compile-test-single,-init-test-run-module-properties,-pre-test-run-single,-do-test-run-single,-post-test-run-single" description="Run single unit test." name="test-single"/>
+    <target depends="init,compile-test-single,-pre-test-run-single" if="have.tests" name="-do-test-run-single-method">
+        <fail unless="test.class">Must select some files in the IDE or set test.class</fail>
+        <fail unless="test.method">Must select some method in the IDE or set test.method</fail>
+        <j2seproject3:test excludes="" includes="${javac.includes}" testincludes="${test.class}" testmethods="${test.method}"/>
+    </target>
+    <target depends="init,compile-test-single,-pre-test-run-single,-do-test-run-single-method" if="have.tests" name="-post-test-run-single-method">
+        <fail if="tests.failed" unless="ignore.failing.tests">Some tests failed; see details above.</fail>
+    </target>
+    <target depends="init,compile-test-single,-init-test-run-module-properties,-pre-test-run-single,-do-test-run-single-method,-post-test-run-single-method" description="Run single unit test." name="test-single-method"/>
+    <!--
+                =======================
+                TEST DEBUGGING SECTION
+                =======================
+            -->
+    <target depends="init,compile-test-single,-pre-test-run-single" if="have.tests" name="-debug-start-debuggee-test">
+        <fail unless="test.class">Must select one file in the IDE or set test.class</fail>
+        <j2seproject3:test-debug excludes="" includes="${javac.includes}" testClass="${test.class}" testincludes="${javac.includes}"/>
+    </target>
+    <target depends="init,compile-test-single,-pre-test-run-single" if="have.tests" name="-debug-start-debuggee-test-method">
+        <fail unless="test.class">Must select one file in the IDE or set test.class</fail>
+        <fail unless="test.method">Must select some method in the IDE or set test.method</fail>
+        <j2seproject3:test-debug excludes="" includes="${javac.includes}" testClass="${test.class}" testMethod="${test.method}" testincludes="${test.class}" testmethods="${test.method}"/>
+    </target>
+    <target depends="init,compile-test" if="netbeans.home+have.tests" name="-debug-start-debugger-test">
+        <j2seproject1:nbjpdastart classpath="${debug.test.classpath}" name="${test.class}"/>
+    </target>
+    <target depends="init,compile-test-single,-init-test-run-module-properties,-debug-start-debugger-test,-debug-start-debuggee-test" name="debug-test"/>
+    <target depends="init,compile-test-single,-init-test-run-module-properties,-debug-start-debugger-test,-debug-start-debuggee-test-method" name="debug-test-method"/>
+    <target depends="debug-test-method" name="debug-single-method"/>
+    <target depends="init,-pre-debug-fix,compile-test-single" if="netbeans.home" name="-do-debug-fix-test">
+        <j2seproject1:nbjpdareload dir="${build.test.classes.dir}"/>
+    </target>
+    <target depends="init,-pre-debug-fix,-do-debug-fix-test" if="netbeans.home" name="debug-fix-test"/>
+    <!--
+                =========================
+                APPLET EXECUTION SECTION
+                =========================
+            -->
+    <target depends="init,compile-single" name="run-applet">
+        <fail unless="applet.url">Must select one file in the IDE or set applet.url</fail>
+        <j2seproject1:java classname="sun.applet.AppletViewer">
+            <customize>
+                <arg value="${applet.url}"/>
+            </customize>
+        </j2seproject1:java>
+    </target>
+    <!--
+                =========================
+                APPLET DEBUGGING  SECTION
+                =========================
+            -->
+    <target depends="init,compile-single" if="netbeans.home" name="-debug-start-debuggee-applet">
+        <fail unless="applet.url">Must select one file in the IDE or set applet.url</fail>
+        <j2seproject3:debug classname="sun.applet.AppletViewer">
+            <customizeDebuggee>
+                <arg value="${applet.url}"/>
+            </customizeDebuggee>
+        </j2seproject3:debug>
+    </target>
+    <target depends="init,compile-single,-debug-start-debugger,-debug-start-debuggee-applet" if="netbeans.home" name="debug-applet"/>
+    <!--
+                ===============
+                CLEANUP SECTION
+                ===============
+            -->
+    <target name="-deps-clean-init" unless="built-clean.properties">
+        <property location="${build.dir}/built-clean.properties" name="built-clean.properties"/>
+        <delete file="${built-clean.properties}" quiet="true"/>
+    </target>
+    <target if="already.built.clean.${basedir}" name="-warn-already-built-clean">
+        <echo level="warn" message="Cycle detected: PRO192_LibraryManagement was already built"/>
+    </target>
+    <target depends="init,-deps-clean-init" name="deps-clean" unless="no.deps">
+        <mkdir dir="${build.dir}"/>
+        <touch file="${built-clean.properties}" verbose="false"/>
+        <property file="${built-clean.properties}" prefix="already.built.clean."/>
+        <antcall target="-warn-already-built-clean"/>
+        <propertyfile file="${built-clean.properties}">
+            <entry key="${basedir}" value=""/>
+        </propertyfile>
+    </target>
+    <target depends="init" name="-do-clean">
+        <delete dir="${build.dir}"/>
+        <delete dir="${dist.jlink.output}"/>
+        <delete dir="${dist.dir}" followsymlinks="false" includeemptydirs="true"/>
+    </target>
+    <target name="-post-clean">
+        <!-- Empty placeholder for easier customization. -->
+        <!-- You can override this target in the ../build.xml file. -->
+    </target>
+    <target depends="init,deps-clean,-do-clean,-post-clean" description="Clean build products." name="clean"/>
+    <target name="-check-call-dep">
+        <property file="${call.built.properties}" prefix="already.built."/>
+        <condition property="should.call.dep">
+            <and>
+                <not>
+                    <isset property="already.built.${call.subproject}"/>
+                </not>
+                <available file="${call.script}"/>
+            </and>
+        </condition>
+    </target>
+    <target depends="-check-call-dep" if="should.call.dep" name="-maybe-call-dep">
+        <ant antfile="${call.script}" inheritall="false" target="${call.target}">
+            <propertyset>
+                <propertyref prefix="transfer."/>
+                <mapper from="transfer.*" to="*" type="glob"/>
+            </propertyset>
+        </ant>
+    </target>
+</project>
+</file>
+
+<file path="nbproject/genfiles.properties">
+build.xml.data.CRC32=bd2e98df
+build.xml.script.CRC32=555220c3
+build.xml.stylesheet.CRC32=f85dc8f2@1.115.0.48
+# This file is used by a NetBeans-based IDE to track changes in generated files such as build-impl.xml.
+# Do not edit this file. You may delete it but then the IDE will never regenerate such files for you.
+nbproject/build-impl.xml.data.CRC32=bd2e98df
+nbproject/build-impl.xml.script.CRC32=3d04e6d9
+nbproject/build-impl.xml.stylesheet.CRC32=12e0a6c2@1.115.0.48
+</file>
+
+<file path="nbproject/project.properties">
+annotation.processing.enabled=true
+annotation.processing.enabled.in.editor=false
+annotation.processing.processor.options=
+annotation.processing.processors.list=
+annotation.processing.run.all.processors=true
+annotation.processing.source.output=${build.generated.sources.dir}/ap-source-output
+build.classes.dir=${build.dir}/classes
+build.classes.excludes=**/*.java,**/*.form
+# This directory is removed when the project is cleaned:
+build.dir=build
+build.generated.dir=${build.dir}/generated
+build.generated.sources.dir=${build.dir}/generated-sources
+# Only compile against the classpath explicitly listed here:
+build.sysclasspath=ignore
+build.test.classes.dir=${build.dir}/test/classes
+build.test.results.dir=${build.dir}/test/results
+# Uncomment to specify the preferred debugger connection transport:
+#debug.transport=dt_socket
+debug.classpath=\
+    ${run.classpath}
+debug.modulepath=\
+    ${run.modulepath}
+debug.test.classpath=\
+    ${run.test.classpath}
+debug.test.modulepath=\
+    ${run.test.modulepath}
+# Files in build.classes.dir which should be excluded from distribution jar
+dist.archive.excludes=
+# This directory is removed when the project is cleaned:
+dist.dir=dist
+dist.jar=${dist.dir}/PRO192_LibraryManagement.jar
+dist.javadoc.dir=${dist.dir}/javadoc
+dist.jlink.dir=${dist.dir}/jlink
+dist.jlink.output=${dist.jlink.dir}/PRO192_LibraryManagement
+excludes=
+includes=**
+jar.compress=false
+javac.classpath=
+# Space-separated list of extra javac options
+javac.compilerargs=
+javac.deprecation=false
+javac.external.vm=true
+javac.modulepath=
+javac.processormodulepath=
+javac.processorpath=\
+    ${javac.classpath}
+javac.source=26
+javac.target=26
+javac.test.classpath=\
+    ${javac.classpath}:\
+    ${build.classes.dir}
+javac.test.modulepath=\
+    ${javac.modulepath}
+javac.test.processorpath=\
+    ${javac.test.classpath}
+javadoc.additionalparam=
+javadoc.author=false
+javadoc.encoding=${source.encoding}
+javadoc.html5=false
+javadoc.noindex=false
+javadoc.nonavbar=false
+javadoc.notree=false
+javadoc.private=false
+javadoc.splitindex=true
+javadoc.use=true
+javadoc.version=false
+javadoc.windowtitle=
+# The jlink additional root modules to resolve
+jlink.additionalmodules=
+# The jlink additional command line parameters
+jlink.additionalparam=
+jlink.launcher=true
+jlink.launcher.name=PRO192_LibraryManagement
+main.class=Main
+manifest.file=manifest.mf
+meta.inf.dir=${src.dir}/META-INF
+mkdist.disabled=false
+platform.active=default_platform
+run.classpath=\
+    ${javac.classpath}:\
+    ${build.classes.dir}
+# Space-separated list of JVM arguments used when running the project.
+# You may also define separate properties like run-sys-prop.name=value instead of -Dname=value.
+# To set system properties for unit tests define test-sys-prop.name=value:
+run.jvmargs=
+run.modulepath=\
+    ${javac.modulepath}
+run.test.classpath=\
+    ${javac.test.classpath}:\
+    ${build.test.classes.dir}
+run.test.modulepath=\
+    ${javac.test.modulepath}
+source.encoding=UTF-8
+src.dir=src
+test.src.dir=test
+</file>
+
+<file path="nbproject/project.xml">
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://www.netbeans.org/ns/project/1">
+    <type>org.netbeans.modules.java.j2seproject</type>
+    <configuration>
+        <data xmlns="http://www.netbeans.org/ns/j2se-project/3">
+            <name>PRO192_LibraryManagement</name>
+            <source-roots>
+                <root id="src.dir"/>
+            </source-roots>
+            <test-roots>
+                <root id="test.src.dir"/>
+            </test-roots>
+        </data>
+    </configuration>
+</project>
+</file>
+
+<file path="src/utilities/Validator.java">
 package utilities;
 
 import java.time.YearMonth;
@@ -1131,11 +2645,467 @@ public class Validator {
     }
 
     // We could validate Book or Member here but I think the BookManager and MemberManager or Book and Member itself should handle it.
-    
+    // Jira   
 }
 </file>
 
-<file path="Main.java">
+<file path=".gitignore">
+/nbproject/private/
+/build/
+</file>
+
+<file path="src/controllers/LibraryController.java">
+package controllers;
+
+import java.time.LocalDate;
+import java.util.List;
+import models.Book;
+import models.Member;
+import models.BorrowTransaction;
+import repositories.BookRepository;
+import repositories.MemberRepository;
+import repositories.BorrowTransactionRepository;
+import services.BookService;
+import services.MemberService;
+import services.BorrowTransactionService;
+import services.ReportService;
+import utilities.InputController;
+import utilities.UIRender;
+
+public class LibraryController {
+    private final BookRepository bookRepository = new BookRepository();
+    private final MemberRepository memberRepository = new MemberRepository();
+    private final BorrowTransactionRepository txRepository = new BorrowTransactionRepository();
+
+    private final BookService bookService = new BookService(bookRepository);
+    private final MemberService memberService = new MemberService(memberRepository);
+    private final BorrowTransactionService transactionService = new BorrowTransactionService(txRepository);
+    private final ReportService reportService = new ReportService(bookRepository, transactionService);
+
+    public LibraryController() {
+        seedInitialDatabaseData();
+    }
+
+    public void start() {
+        boolean executing = true;
+        String[] modules = {
+                "Book Management System", "Member Management System", "Borrow Circulation Center",
+                "Return Processing Center", "Report Lost Book Asset", "Analytics & Reports Dashboard"
+        };
+
+        while (executing) {
+            UIRender.clearScreen();
+            UIRender.renderMenu("Library Administration Framework Core", modules);
+            int selection = InputController.getChoice("Select component option: ", 6);
+            switch (selection) {
+                case 1: handleBookSubsystem(); break;
+                case 2: handleMemberSubsystem(); break;
+                case 3: handleBorrowWorkflow(); break;
+                case 4: handleReturnWorkflow(); break;
+                case 5: handleLostBookEmergency(); break;
+                case 6: handleAnalyticsDashboard(); break;
+                case 0: executing = false; break;
+            }
+        }
+    }
+
+    private void handleBookSubsystem() {
+        boolean active = true;
+        String[] choices = { "Add Asset Book", "Remove Asset Book", "Update Book Details", "List Book Inventory" };
+
+        while (active) {
+            UIRender.clearScreen();
+            UIRender.renderMenu("Book Inventory Sub-Registry", choices);
+            int processId = InputController.getChoice("Select action index: ", 4);
+
+            switch (processId) {
+                case 1:
+                    UIRender.clearScreen();
+                    if (bookService.registerBook(InputController.inputNewBookData()))
+                        UIRender.renderSuccess("Book registered safely.");
+                    else UIRender.renderError("Registration failed due to duplicate entry.");
+                    UIRender.pauseEnter();
+                    break;
+                case 2:
+                    UIRender.clearScreen();
+                    Book targetDelete = BookService.searchAndSelectBook(bookRepository);
+                    if (targetDelete == null) break;
+                    if (targetDelete.getAvailableQuantity() != targetDelete.getTotalQuantity()) {
+                        UIRender.renderError("Purge Lock Triggered: Active loans outstanding.");
+                    } else {
+                        bookRepository.delete(targetDelete);
+                        UIRender.renderSuccess("Asset record purged cleanly.");
+                    }
+                    UIRender.pauseEnter();
+                    break;
+                case 3:
+                    UIRender.clearScreen();
+                    Book oldBook = BookService.searchAndSelectBook(bookRepository);
+                    if (oldBook == null) break;
+
+                    Book newBook = InputController.updateBookModelFields(oldBook);
+                    if (bookService.updateBook(oldBook, newBook)) {
+                        UIRender.renderSuccess("Asset modifications mapped and synchronized safely.");
+                    } else {
+                        UIRender.renderError("Update rejected: Capacity constraints bound failure.");
+                    }
+                    UIRender.pauseEnter();
+                    break;
+                case 4:
+                    UIRender.clearScreen();
+                    UIRender.renderBookContentTable(bookService.getAllBooks());
+                    UIRender.pauseEnter();
+                    break;
+                case 0: active = false; break;
+            }
+        }
+    }
+
+    private void handleMemberSubsystem() {
+        boolean active = true;
+        String[] options = { "Register New Member", "Revoke Member Account", "Modify Member Details", "List Directory Roster" };
+
+        while (active) {
+            UIRender.clearScreen();
+            UIRender.renderMenu("Member Registry Sub-Framework", options);
+            int choice = InputController.getChoice("Select action index: ", 4);
+
+            switch (choice) {
+                case 1:
+                    UIRender.clearScreen();
+                    if (memberService.registerMember(InputController.inputNewMemberData()))
+                        UIRender.renderSuccess("Member profile instantiated.");
+                    else UIRender.renderError("Profile creation collapsed.");
+                    UIRender.pauseEnter();
+                    break;
+                case 2:
+                    UIRender.clearScreen();
+                    Member targetDelete = MemberService.searchAndSelectMember(memberRepository);
+                    if (targetDelete == null) break;
+                    if (transactionService.countActiveLoans(targetDelete.getId()) > 0) {
+                        UIRender.renderError("Revocation Denied: Outstanding open loans exist.");
+                    } else {
+                        memberRepository.delete(targetDelete);
+                        UIRender.renderSuccess("User account card revoked cleanly.");
+                    }
+                    UIRender.pauseEnter();
+                    break;
+                case 3:
+                    UIRender.clearScreen();
+                    Member targetUpdate = MemberService.searchAndSelectMember(memberRepository);
+                    if (targetUpdate != null) {
+                        Member newMember = InputController.updateMemberModelFields(targetUpdate);
+                        if (memberService.updateMember(targetUpdate, newMember)) {
+                            UIRender.renderSuccess("Profile modifications saved and synced.");
+                        }
+                    }
+                    UIRender.pauseEnter();
+                    break;
+                case 4:
+                    UIRender.clearScreen();
+                    UIRender.renderMemberContentTable(memberService.getAllMembers());
+                    UIRender.pauseEnter();
+                    break;
+                case 0: active = false; break;
+            }
+        }
+    }
+
+    private void handleBorrowWorkflow() {
+        UIRender.clearScreen();
+        Member member = MemberService.searchAndSelectMember(memberRepository);
+        if (member == null) return;
+
+        Book book = BookService.searchAndSelectBook(bookRepository);
+        if (book == null) return;
+
+        if (book.getAvailableQuantity() <= 0) {
+            UIRender.renderError("Checkout Rejected: Out of Stock.");
+            UIRender.pauseEnter();
+            return;
+        }
+        if (transactionService.countActiveLoans(member.getId()) >= member.getBorrowLimit()) {
+            UIRender.renderError("Checkout Rejected: Member loan ceiling limit reached.");
+            UIRender.pauseEnter();
+            return;
+        }
+        if (transactionService.isBookBorrowedByMember(member.getId(), book.getId())) {
+            UIRender.renderError("Checkout Rejected: Active copy instance loan restriction.");
+            UIRender.pauseEnter();
+            return;
+        }
+
+        BorrowTransaction tx = new BorrowTransaction(member.getId(), book.getId(), LocalDate.now());
+        if (InputController.getChoice("Configure custom return timeline override? (1-Yes, 0-No default): ", 1) == 1) {
+            tx.setDueDate(InputController.inputCustomDueDate(tx.getBorrowDate()));
+        }
+
+        transactionService.executeCheckout(tx, book);
+        UIRender.renderSuccess("Circulation loan ledger updated and verified.");
+        UIRender.pauseEnter();
+    }
+
+    private void handleReturnWorkflow() {
+        UIRender.clearScreen();
+        Member member = MemberService.searchAndSelectMember(memberRepository);
+        if (member == null) return;
+
+        List<BorrowTransaction> activeLoans = transactionService.getActiveLoansByMember(member.getId());
+        if (activeLoans.isEmpty()) {
+            UIRender.renderError("No outstanding open balances found.");
+            UIRender.pauseEnter();
+            return;
+        }
+
+        UIRender.renderTransactionTable(activeLoans);
+        BorrowTransaction targetTx = InputController.selectTransactionFromList(activeLoans);
+        if (targetTx == null) return;
+
+        Book book = bookService.getBookById(targetTx.getBookId());
+        double fines = transactionService.processReturn(targetTx, book, LocalDate.now());
+
+        // VALIDATED INVOCATION: Now correctly matching UIRender's capabilities
+        if (fines > 0) {
+            UIRender.renderFineStatement(0.0, fines, fines);
+        } else {
+            UIRender.renderSuccess("Asset returned on schedule. Liability balance cleared.");
+        }
+        UIRender.pauseEnter();
+    }
+
+    private void handleLostBookEmergency() {
+        UIRender.clearScreen();
+        Member member = MemberService.searchAndSelectMember(memberRepository);
+        if (member == null) return;
+
+        List<BorrowTransaction> activeLoans = transactionService.getActiveLoansByMember(member.getId());
+        if (activeLoans.isEmpty()) {
+            UIRender.renderError("Possesses zero outstanding active open accounts.");
+            UIRender.pauseEnter();
+            return;
+        }
+
+        UIRender.renderTransactionTable(activeLoans);
+        BorrowTransaction targetTx = InputController.selectTransactionFromList(activeLoans);
+        if (targetTx == null) return;
+
+        Book book = bookService.getBookById(targetTx.getBookId());
+        if (book == null) return;
+
+        double customCost = InputController.getValidReplacementCost();
+        double[] receiptInvoice = transactionService.processLostBook(targetTx, book, customCost);
+
+        UIRender.clearScreen();
+        // VALIDATED INVOCATION: Passing structured array from the service computation layer
+        UIRender.renderFineStatement(receiptInvoice[0], receiptInvoice[1], receiptInvoice[2]);
+        UIRender.pauseEnter();
+    }
+
+    private void handleAnalyticsDashboard() {
+        boolean status = true;
+        String[] menu = {
+                "View Specific Member Borrowing History", "View All Transactions Log",
+                "View Active Overdue Books Report", "View Most Popular Books Analytics"
+        };
+
+        while (status) {
+            UIRender.clearScreen();
+            UIRender.renderMenu("Library Performance Analytics Center", menu);
+            int selection = InputController.getChoice("Select Analytics Action Matrix Item: ", 4);
+            switch (selection) {
+                case 1:
+                    Member m = MemberService.searchAndSelectMember(memberRepository);
+                    if (m != null) UIRender.renderTransactionTable(reportService.getSortedMemberHistory(m));
+                    UIRender.pauseEnter();
+                    break;
+                case 2:
+                    UIRender.renderTransactionTable(reportService.getMasterLogSorted());
+                    UIRender.pauseEnter();
+                    break;
+                case 3:
+                    UIRender.renderTransactionTable(reportService.getOverdueAssets());
+                    UIRender.pauseEnter();
+                    break;
+                case 4:
+                    int cap = InputController.getInt("Enter popularity threshold display cap count: ");
+                    UIRender.renderBookContentTable(reportService.getPopularBooks(cap));
+                    UIRender.pauseEnter();
+                    break;
+                case 0: status = false; break;
+            }
+        }
+    }
+
+    private void seedInitialDatabaseData() {
+        bookRepository.save(new Book("The Great Gatsby", "F. Scott Fitzgerald", "Classic", 1925, 5));
+        bookRepository.save(new Book("1984", "George Orwell", "Dystopian", 1949, 3));
+        bookRepository.save(new Book("How to get 10 mark in PRO_192", "FPT Instructor", "Academic Trick", 2024, 3));
+        memberRepository.save(new Member("Benn", "0123456789", "benn@uni.edu.vn"));
+        memberRepository.save(new Member("Nguyen Van Binh", "0373450305", "nguyenvanbinh542007@gmail.com"));
+    }
+}
+</file>
+
+<file path="src/models/BorrowTransaction.java">
+package models;
+
+import utilities.IDManager;
+import java.time.LocalDate;
+
+public class BorrowTransaction {
+    private final String transactionId;
+    private final String memberId;
+    private String bookId;
+    private final LocalDate borrowDate;
+    private LocalDate dueDate;
+    private LocalDate returnDate;
+    private double finePaid;
+
+    public BorrowTransaction(String memberId, String bookId, LocalDate borrowDate) {
+        this.transactionId = IDManager.transactionIDGenerator.newID();
+        this.memberId = memberId;
+        this.bookId = bookId;
+        this.borrowDate = borrowDate;
+        this.dueDate = borrowDate.plusDays(14);
+        this.returnDate = null;
+        this.finePaid = 0.0;
+    }
+
+    public String getTransactionId() { return transactionId; }
+    public String getMemberId() { return memberId; }
+    public String getBookId() { return bookId; }
+    public LocalDate getBorrowDate() { return borrowDate; }
+    public LocalDate getDueDate() { return dueDate; }
+    public LocalDate getReturnDate() { return returnDate; }
+    public void setReturnDate(LocalDate returnDate) { this.returnDate = returnDate; }
+    public double getFinePaid() { return finePaid; }
+    public void setFinePaid(double finePaid) { this.finePaid = finePaid; }
+
+    public void setDueDate(LocalDate dueDate) {
+        if (dueDate.isBefore(borrowDate)) return;
+        this.dueDate = dueDate;
+    }
+
+    @Override
+    public String toString() {
+        String returnDateStr = (returnDate == null) ? "OUT_ON_LOAN" : returnDate.toString();
+        return transactionId + "|" + memberId + "|" + bookId + "|" + borrowDate + "|" + dueDate + "|" + returnDateStr + "|" + String.format("%.0f", finePaid);
+    }
+}
+</file>
+
+<file path="src/models/Member.java">
+package models;
+
+import utilities.IDManager;
+
+import java.util.ArrayList;
+import java.util.List;
+
+public class Member {
+    private final String id;
+    private String name;
+    private String phone;
+    private String email;
+    private final List<BorrowTransaction> borrowHistory = new ArrayList<>();
+    private int currentBorrowLimit;
+
+    public Member(String name, String phone, String email) {
+        this.id = IDManager.memberIDGenerator.newID();
+        this.name = name;
+        this.phone = phone;
+        this.email = email;
+    }
+
+    public int getBorrowLimit() {
+        return 3;
+    }
+
+    public String getId() {
+        return id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public String getPhone() {
+        return phone;
+    }
+
+    public void setPhone(String phone) {
+        this.phone = phone;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+    public int getCurrentBorrowLimit() {
+        return currentBorrowLimit;
+    }
+
+    public void setCurrentBorrowLimit(int currentBorrowLimit) {
+        this.currentBorrowLimit = currentBorrowLimit;
+    }
+
+    public void addTransactionInfo(BorrowTransaction borrowTransaction) {
+        if (borrowTransaction != null)
+            this.borrowHistory.add(borrowTransaction);
+    }
+
+    public List<BorrowTransaction> getBorrowHistory() {
+        return new ArrayList<>(this.borrowHistory);
+    }
+
+
+    @Override
+    public String toString() {
+        return id + "|" + name + "|" + phone + "|" + email + "|" + getBorrowLimit();
+    }
+}
+</file>
+
+<file path="src/utilities/IDManager.java">
+package utilities;
+
+public class IDManager {
+    private final String PREFIX;
+    private final int BASE_GENERATOR_SIZE;
+    private int iterator;
+
+    public static final IDManager memberIDGenerator = new IDManager("MEM");
+    public static final IDManager bookIDGenerator = new IDManager("BOK");
+    public static final IDManager transactionIDGenerator = new IDManager("TSC", 5, 0);
+
+    public IDManager(String prefix, int baseGeneratorSize, int seed) {
+        if (prefix == null)
+            PREFIX = "NUL";
+        else
+            this.PREFIX = prefix.toUpperCase();
+        this.BASE_GENERATOR_SIZE = baseGeneratorSize;
+        this.iterator = seed;
+    }
+
+    public IDManager(String prefix) {
+        this(prefix, 4, 0);
+    }
+
+    public String newID() {
+        return String.format("%s%0" + BASE_GENERATOR_SIZE + "d", PREFIX, iterator++);
+    }
+}
+</file>
+
+<file path="src/Main.java">
 import controllers.LibraryController;
 
 public class Main {
@@ -1148,6 +3118,203 @@ public class Main {
         app.start();
     }
 
+}
+</file>
+
+<file path="src/models/Book.java">
+package models;
+
+import utilities.IDManager;
+
+public class Book {
+    private final String id;
+    private String title;
+    private String author;
+    private String genre;
+    private int publicationYear;
+    private int totalQuantity;
+    private int availableQuantity;
+
+    public Book(String title, String author, String genre, int publicationYear, int totalQuantity) {
+        this.id = IDManager.bookIDGenerator.newID();
+        this.title = title;
+        this.author = author;
+        this.genre = genre;
+        this.publicationYear = publicationYear;
+        this.totalQuantity = totalQuantity;
+        this.availableQuantity = totalQuantity;
+    }
+
+    public String getId() { return id; }
+    public String getTitle() { return title; }
+    public void setTitle(String title) { this.title = title; }
+    public String getAuthor() { return author; }
+    public void setAuthor(String author) { this.author = author; }
+    public String getGenre() { return genre; }
+    public void setGenre(String genre) { this.genre = genre; }
+    public int getPublicationYear() { return publicationYear; }
+    public void setPublicationYear(int publicationYear) { this.publicationYear = publicationYear; }
+    public int getTotalQuantity() { return totalQuantity; }
+
+    public void setTotalQuantity(int totalQuantity) {
+        int borrowedCount = this.totalQuantity - this.availableQuantity;
+        this.totalQuantity = totalQuantity;
+        this.availableQuantity = totalQuantity - borrowedCount;
+    }
+
+    public int getAvailableQuantity() { return availableQuantity; }
+    public void setAvailableQuantity(int availableQuantity) { this.availableQuantity = availableQuantity; }
+
+    @Override
+    public String toString() {
+        return id + "|" + title + "|" + author + "|" + genre + "|" + publicationYear + "|" + availableQuantity + "|" + totalQuantity;
+    }
+}
+</file>
+
+<file path="src/utilities/UIRender.java">
+package utilities;
+
+import java.util.ArrayList;
+import java.util.List;
+import models.Book;
+import models.Member;
+import models.BorrowTransaction;
+
+public class UIRender {
+    private static final String BORDER_LINE = "==================================================";
+    private static final String DIVIDER_LINE = "--------------------------------------------------";
+
+    public static void renderHeader(String title) {
+        System.out.println("\n" + BORDER_LINE);
+        int paddingSpaces = (BORDER_LINE.length() - title.length()) / 2;
+        int totalWidth = paddingSpaces + title.length();
+        System.out.printf("%" + totalWidth + "s\n", title.toUpperCase());
+        System.out.println(BORDER_LINE);
+    }
+
+    public static void renderMenu(String menuTitle, String[] options) {
+        renderHeader(menuTitle);
+        for (int i = 0; i < options.length; i++) {
+            System.out.println("  [" + (i + 1) + "] " + options[i]);
+        }
+        System.out.println("  [0] Back / Exit");
+        System.out.println(DIVIDER_LINE);
+    }
+
+    private static void renderContentTable(List<?> contents, String title, String... fields) {
+        if (fields == null || fields.length == 0) return;
+
+        renderHeader(title);
+        if (contents == null || contents.isEmpty()) {
+            renderError("No data records available to map in this matrix view.");
+            return;
+        }
+
+        int columnCount = fields.length;
+        int[] columnWidths = new int[columnCount];
+
+        for (int i = 0; i < columnCount; i++) {
+            columnWidths[i] = fields[i].length();
+        }
+
+        List<String[]> processedRows = new ArrayList<>();
+        for (Object item : contents) {
+            if (item == null) continue;
+            String[] tokens = item.toString().split("\\|", -1);
+            String[] horizontalRow = new String[columnCount];
+
+            for (int i = 0; i < columnCount; i++) {
+                horizontalRow[i] = (i < tokens.length && tokens[i] != null) ? tokens[i].trim() : "";
+                columnWidths[i] = Math.max(columnWidths[i], horizontalRow[i].length());
+            }
+            processedRows.add(horizontalRow);
+        }
+
+        String gridBorder = buildGridBorder(columnWidths);
+
+        System.out.println(gridBorder);
+        System.out.print("|");
+        for (int i = 0; i < columnCount; i++) {
+            System.out.printf(" %-" + columnWidths[i] + "s |", fields[i]);
+        }
+        System.out.println("\n" + gridBorder);
+
+        for (String[] cells : processedRows) {
+            System.out.print("|");
+            for (int i = 0; i < columnCount; i++) {
+                System.out.printf(" %-" + columnWidths[i] + "s |", cells[i]);
+            }
+            System.out.println();
+        }
+        System.out.println(gridBorder);
+    }
+
+    private static StringBuilder repeat(String base, int repeatTime) {
+        StringBuilder stringBuilder = new StringBuilder(base);
+        for (int i = 0; i < repeatTime; i++)
+            stringBuilder.append(base);
+
+        return stringBuilder;
+    }
+
+    private static String buildGridBorder(int[] widths) {
+        StringBuilder sb = new StringBuilder("+");
+        for (int w : widths) {
+            sb.append(repeat("-", w + 2).append("+"));
+        }
+        return sb.toString();
+    }
+
+    public static void renderBookContentTable(List<Book> books) {
+        renderContentTable(books, "Book Inventory Manifest",
+                "ID Key", "Title Name", "Author", "Genre Sub-Class", "Year", "Available", "Total Stock");
+    }
+
+    public static void renderMemberContentTable(List<Member> members) {
+        renderContentTable(members, "Membership Registry Directory",
+                "User Key", "Legal Identity Name", "Verified Phone", "System Email", "Quota Limit");
+    }
+
+    public static void renderTransactionTable(List<BorrowTransaction> transactions) {
+        renderContentTable(transactions, "Circulation History Ledger",
+                "Tx ID", "Member ID", "Book ID", "Borrow Date", "Target Due Date", "Return Date", "Fine Settled");
+    }
+
+    public static void renderSuccess(String message) {
+        System.out.println("\n[SUCCESS] >>> " + message + "\n");
+    }
+
+    public static void renderError(String message) {
+        System.err.println("\n[ERROR] !!! " + message + " !!!\n");
+    }
+
+    /**
+     * ADDED: Explicitly defined method to avoid compilation failure.
+     * Handles formatted statement rendering without polluting the controller.
+     */
+    public static void renderFineStatement(double replacementCost, double latePenalty, double totalBill) {
+        renderHeader("Billing Receipt Statement");
+        if (replacementCost > 0) {
+            System.out.printf("  1. Book Replacement Charge : %,.0f VND\n", replacementCost);
+            System.out.printf("  2. Accumulative Late Fine  : %,.0f VND\n", latePenalty);
+        } else {
+            System.out.printf("  1. Accumulative Late Fine  : %,.0f VND\n", latePenalty);
+        }
+        System.out.println(DIVIDER_LINE);
+        System.out.printf("  TOTAL BALANCE DUE          : %,.0f VND\n", totalBill);
+        System.out.println(BORDER_LINE);
+    }
+
+    public static void pauseEnter() {
+        System.out.print("Press Enter to continue...");
+        new java.util.Scanner(System.in).nextLine();
+    }
+
+    public static void clearScreen() {
+        System.out.print("\033[H\033[2J");
+        System.out.flush();
+    }
 }
 </file>
 

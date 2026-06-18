@@ -36,5 +36,5 @@ public class Validator {
     }
 
     // We could validate Book or Member here but I think the BookManager and MemberManager or Book and Member itself should handle it.
-    
+    // Jira   
 }

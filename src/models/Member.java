@@ -1,34 +1,78 @@
 package models;
 
-import sun.plugin2.message.RemoteCAContextIdMessage;
 import utilities.IDManager;
 
-public class Member {
+import java.util.ArrayList;
+import java.util.List;
 
+public class Member {
     private final String id;
     private String name;
     private String phone;
     private String email;
+    private final List<BorrowTransaction> borrowHistory = new ArrayList<>();
+    private int currentBorrowLimit;
 
     public Member(String name, String phone, String email) {
-        id = IDManager.memberIDGenerator.newID();
+        this.id = IDManager.memberIDGenerator.newID();
         this.name = name;
         this.phone = phone;
         this.email = email;
+        currentBorrowLimit = 3;
     }
 
-    // Milestone 3 Hook: dynamic limit extraction instead of hardcoding '3' in loops
     public int getBorrowLimit() {
-        return 3; 
+        return 3;
     }
 
-    // Getters and Setters
-    public String getId() { return id; }
-    public String getName() { return name; }
-    public void setName(String name) { this.name = name; }
-    public String getPhone() { return phone; }
-    public void setPhone(String phone) { this.phone = phone; }
-    public String getEmail() { return email; }
-    public void setEmail(String email) { this.email = email; }
+    public String getId() {
+        return id;
+    }
 
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public String getPhone() {
+        return phone;
+    }
+
+    public void setPhone(String phone) {
+        this.phone = phone;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+    public int getCurrentBorrowLimit() {
+        return currentBorrowLimit;
+    }
+
+    public void setCurrentBorrowLimit(int currentBorrowLimit) {
+        this.currentBorrowLimit = currentBorrowLimit;
+    }
+
+    public void addTransactionInfo(BorrowTransaction borrowTransaction) {
+        if (borrowTransaction != null)
+            this.borrowHistory.add(borrowTransaction);
+    }
+
+    public List<BorrowTransaction> getBorrowHistory() {
+        return new ArrayList<>(this.borrowHistory);
+    }
+
+
+    @Override
+    public String toString() {
+        return id + "|" + name + "|" + phone + "|" + email + "|" + getBorrowLimit();
+    }
 }
