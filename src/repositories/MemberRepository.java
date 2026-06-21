@@ -1,35 +1,31 @@
 package repositories;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
+
 import models.Member;
 
 public class MemberRepository {
-    private final List<Member> database = new ArrayList<>();
+    private final Map<String, Member> database = new HashMap<>();
 
     public void save(Member member) {
-        database.add(member);
+        database.put(member.getId(), member);
     }
 
     public void delete(Member member) {
-        database.remove(member);
+        database.remove(member.getId());
     }
 
     public void update(Member oldMember, Member newMember) {
-        int index = database.indexOf(oldMember);
-        if (index != -1) {
-            database.set(index, newMember);
+        if (database.containsKey(oldMember.getId())) {
+            database.put(oldMember.getId(), newMember);
         }
     }
 
     public List<Member> findAll() {
-        return database;
+        return new ArrayList<>(database.values());
     }
 
     public Member findById(String id) {
-        return database.stream()
-                .filter(m -> m.getId().equalsIgnoreCase(id.trim()))
-                .findFirst()
-                .orElse(null);
+        return database.get(id);
     }
 }

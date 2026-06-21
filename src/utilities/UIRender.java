@@ -4,11 +4,10 @@ import java.util.ArrayList;
 import java.util.List;
 import models.Book;
 import models.Member;
-import models.BorrowTransaction;
 
 public class UIRender {
     private static final String BORDER_LINE = "==================================================";
-    private static final String DIVIDER_LINE = "--------------------------------------------------";
+    public static final String DIVIDER_LINE = "--------------------------------------------------";
 
     public static void renderHeader(String title) {
         System.out.println("\n" + BORDER_LINE);
@@ -27,83 +26,67 @@ public class UIRender {
         System.out.println(DIVIDER_LINE);
     }
 
-    private static void renderContentTable(List<?> contents, String title, String... fields) {
-        if (fields == null || fields.length == 0) return;
-
+    public static <T> void renderTable(List<T> items, String title, TableRenderer<T> renderer) {
         renderHeader(title);
-        if (contents == null || contents.isEmpty()) {
-            renderError("No data records available to map in this matrix view.");
+        if (items == null || items.isEmpty()) {
+            renderError("No data available.");
             return;
         }
+        String[] headers = renderer.getHeaders();
+        int colCount = headers.length;
+        int[] widths = new int[colCount];
+        for (int i = 0; i < colCount; i++) widths[i] = headers[i].length();
 
-        int columnCount = fields.length;
-        int[] columnWidths = new int[columnCount];
-
-        for (int i = 0; i < columnCount; i++) {
-            columnWidths[i] = fields[i].length();
+        List<String[]> rows = new ArrayList<>();
+        for (T item : items) {
+            String[] row = renderer.toRow(item);
+            rows.add(row);
+            for (int i = 0; i < colCount; i++)
+                if (i < row.length) widths[i] = Math.max(widths[i], row[i].length());
         }
 
-        List<String[]> processedRows = new ArrayList<>();
-        for (Object item : contents) {
-            if (item == null) continue;
-            String[] tokens = item.toString().split("\\|", -1);
-            String[] horizontalRow = new String[columnCount];
-
-            for (int i = 0; i < columnCount; i++) {
-                horizontalRow[i] = (i < tokens.length && tokens[i] != null) ? tokens[i].trim() : "";
-                columnWidths[i] = Math.max(columnWidths[i], horizontalRow[i].length());
-            }
-            processedRows.add(horizontalRow);
-        }
-
-        String gridBorder = buildGridBorder(columnWidths);
-
-        System.out.println(gridBorder);
-        System.out.print("|");
-        for (int i = 0; i < columnCount; i++) {
-            System.out.printf(" %-" + columnWidths[i] + "s |", fields[i]);
-        }
-        System.out.println("\n" + gridBorder);
-
-        for (String[] cells : processedRows) {
-            System.out.print("|");
-            for (int i = 0; i < columnCount; i++) {
-                System.out.printf(" %-" + columnWidths[i] + "s |", cells[i]);
-            }
-            System.out.println();
-        }
-        System.out.println(gridBorder);
+        String border = buildGridBorder(widths);
+        System.out.println(border);
+        printRow(headers, widths);
+        System.out.println(border);
+        for (String[] row : rows) printRow(row, widths);
+        System.out.println(border);
     }
 
-    private static StringBuilder repeat(String base, int repeatTime) {
-        StringBuilder stringBuilder = new StringBuilder(base);
-        for (int i = 0; i < repeatTime; i++)
-            stringBuilder.append(base);
-
-        return stringBuilder;
+    private static void printRow(String[] cells, int[] widths) {
+        System.out.print("|");
+        for (int i = 0; i < widths.length; i++)
+            System.out.printf(" %-" + widths[i] + "s |", i < cells.length ? cells[i] : "");
+        System.out.println();
     }
 
     private static String buildGridBorder(int[] widths) {
         StringBuilder sb = new StringBuilder("+");
         for (int w : widths) {
-            sb.append(repeat("-", w + 2).append("+"));
+            for (int i = 0; i < w + 2; i++) sb.append("-");
+            sb.append("+");
         }
         return sb.toString();
     }
 
-    public static void renderBookContentTable(List<Book> books) {
-        renderContentTable(books, "Book Inventory Manifest",
-                "ID Key", "Title Name", "Author", "Genre Sub-Class", "Year", "Available", "Total Stock", "Type");
+    public static void renderBookPreview(Book b) {
+        renderHeader("Review Book Information");
+        System.out.println("  Title  : " + b.getTitle());
+        System.out.println("  Author : " + b.getAuthor());
+        System.out.println("  Genre  : " + b.getGenre());
+        System.out.println("  Year   : " + b.getPublicationYear());
+        System.out.println("  Stock  : " + b.getTotalQuantity());
+        System.out.println("  Type   : " + b.getBookType());
+        System.out.println(DIVIDER_LINE);
     }
 
-    public static void renderMemberContentTable(List<Member> members) {
-        renderContentTable(members, "Membership Registry Directory",
-                "User Key", "Legal Identity Name", "Verified Phone", "System Email", "Quota Limit", "Tier");
-    }
-
-    public static void renderTransactionTable(List<BorrowTransaction> transactions) {
-        renderContentTable(transactions, "Circulation History Ledger",
-                "Tx ID", "Member ID", "Book ID", "Borrow Date", "Target Due Date", "Return Date", "Fine Settled");
+    public static void renderMemberPreview(Member m) {
+        renderHeader("Review Member Information");
+        System.out.println("  Name   : " + m.getName());
+        System.out.println("  Phone  : " + m.getPhone());
+        System.out.println("  Email  : " + m.getEmail());
+        System.out.println("  Tier   : " + m.getTierName());
+        System.out.println(DIVIDER_LINE);
     }
 
     public static void renderSuccess(String message) {
@@ -114,10 +97,6 @@ public class UIRender {
         System.err.println("\n[ERROR] !!! " + message + " !!!\n");
     }
 
-    /**
-     * ADDED: Explicitly defined method to avoid compilation failure.
-     * Handles formatted statement rendering without polluting the controller.
-     */
     public static void renderFineStatement(double replacementCost, double latePenalty, double totalBill) {
         renderHeader("Billing Receipt Statement");
         if (replacementCost > 0) {

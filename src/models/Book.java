@@ -7,18 +7,33 @@ public class Book {
     private String title;
     private String author;
     private String genre;
+    private double price;
     private int publicationYear;
     private int totalQuantity;
     private int availableQuantity;
+    private final BookType bookType;
 
-    public Book(String title, String author, String genre, int publicationYear, int totalQuantity) {
+    public Book(String title, String author, String genre, int publicationYear, double prices, int totalQuantity, BookType bookType) {
         this.id = IDManager.bookIDGenerator.newID();
         this.title = title;
         this.author = author;
         this.genre = genre;
         this.publicationYear = publicationYear;
         this.totalQuantity = totalQuantity;
+        this.price = prices;
         this.availableQuantity = totalQuantity;
+        this.bookType = bookType;
+    }
+
+    public Book(String id, String title, String author, String genre, int publicationYear, int totalQuantity, BookType bookType) {
+        this.id = id;
+        this.title = title;
+        this.author = author;
+        this.genre = genre;
+        this.publicationYear = publicationYear;
+        this.totalQuantity = totalQuantity;
+        this.availableQuantity = totalQuantity;
+        this.bookType = bookType;
     }
 
     public String getId() { return id; }
@@ -40,9 +55,20 @@ public class Book {
 
     public int getAvailableQuantity() { return availableQuantity; }
     public void setAvailableQuantity(int availableQuantity) { this.availableQuantity = availableQuantity; }
+    public BookType getBookType() { return bookType; }
+
+    public double getPrice() {
+        return price;
+    }
+
+    public void setPrice(double price) {
+        if (price > 0)
+            this.price = price;
+    }
 
     @Override
     public String toString() {
-        return id + "|" + title + "|" + author + "|" + genre + "|" + publicationYear + "|" + availableQuantity + "|" + totalQuantity;
+        return id + "|" + title + "|" + author + "|" + genre + "|" + publicationYear
+                + "|" + availableQuantity + "|" + totalQuantity + "|" + bookType.name();
     }
 }

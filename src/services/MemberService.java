@@ -1,11 +1,13 @@
 package services;
 
-import java.util.List;
-import java.util.stream.Collectors;
+import exceptions.DuplicateEntryException;
+import exceptions.EntityNotFoundException;
+import exceptions.InvalidOperationException;
 import models.Member;
 import repositories.MemberRepository;
-import utilities.InputController;
-import utilities.UIRender;
+
+import java.util.List;
+import java.util.stream.Collectors;
 
 public class MemberService {
     private final MemberRepository memberRepository;
@@ -14,22 +16,53 @@ public class MemberService {
         this.memberRepository = memberRepository;
     }
 
-    public boolean registerMember(Member member) {
-        if (memberRepository.findById(member.getId()) != null) return false;
-        if (isContactDuplicate(member.getPhone(), member.getEmail())) return false;
+    public void registerMember(Member member) throws DuplicateEntryException {
+        if (isPhoneDuplicate(member.getPhone()))
+            throw new DuplicateEntryException("Phone", member.getPhone());
+        if (isEmailDuplicate(member.getEmail()))
+            throw new DuplicateEntryException("Email", member.getEmail());
         memberRepository.save(member);
-        return true;
     }
 
-    public boolean updateMember(Member oldMember, Member newMember) {
-        if (oldMember == null || newMember == null) return false;
+    public void updateMember(Member oldMember, Member newMember)
+            throws EntityNotFoundException, DuplicateEntryException {
+        if (oldMember == null)
+            throw new EntityNotFoundException("Member", "unknown");
+        if (isPhoneDuplicateExcluding(newMember.getPhone(), oldMember.getId()))
+            throw new DuplicateEntryException("Phone", newMember.getPhone());
+        if (isEmailDuplicateExcluding(newMember.getEmail(), oldMember.getId()))
+            throw new DuplicateEntryException("Email", newMember.getEmail());
         memberRepository.update(oldMember, newMember);
-        return true;
     }
 
-    private boolean isContactDuplicate(String phone, String email) {
+    public void deleteMember(Member member, int activeLoans)
+            throws InvalidOperationException {
+        if (activeLoans > 0)
+            throw new InvalidOperationException(
+                    "Cannot delete member with " + activeLoans + " active loan(s).");
+        memberRepository.delete(member);
+    }
+
+    private boolean isPhoneDuplicate(String phone) {
         return memberRepository.findAll().stream()
-                .anyMatch(m -> m.getPhone().trim().equals(phone.trim()) || m.getEmail().equalsIgnoreCase(email.trim()));
+                .anyMatch(m -> m.getPhone().trim().equals(phone.trim()));
+    }
+
+    private boolean isEmailDuplicate(String email) {
+        return memberRepository.findAll().stream()
+                .anyMatch(m -> m.getEmail().equalsIgnoreCase(email.trim()));
+    }
+
+    private boolean isPhoneDuplicateExcluding(String phone, String excludeId) {
+        return memberRepository.findAll().stream()
+                .anyMatch(m -> !m.getId().equals(excludeId)
+                        && m.getPhone().trim().equals(phone.trim()));
+    }
+
+    private boolean isEmailDuplicateExcluding(String email, String excludeId) {
+        return memberRepository.findAll().stream()
+                .anyMatch(m -> !m.getId().equals(excludeId)
+                        && m.getEmail().equalsIgnoreCase(email.trim()));
     }
 
     public List<Member> getAllMembers() {
@@ -40,20 +73,14 @@ public class MemberService {
         return memberRepository.findById(id);
     }
 
-    public static Member searchAndSelectMember(MemberRepository repository) {
-        String query = InputController.getString("Enter Member Identity Search Query (Name/ID): ");
-        List<Member> matches = repository.findAll().stream()
-                .filter(m -> m.getId().toLowerCase().contains(query.toLowerCase()) ||
-                        m.getName().toLowerCase().contains(query.toLowerCase()))
-                .collect(Collectors.toList());
-
-        if (matches.isEmpty()) {
-            UIRender.renderError("Zero direct matching member records found.");
-            UIRender.pauseEnter();
-            return null;
+    public List<Member> getByQuery(String query) {
+        if (query == null || query.trim().isEmpty()) {
+            return getAllMembers();
         }
-
-        UIRender.renderMemberContentTable(matches);
-        return matches.get(0);
+        String lowerCaseQuery = query.toLowerCase();
+        return memberRepository.findAll().stream()
+                .filter(m -> m.getId().toLowerCase().contains(lowerCaseQuery)
+                        || m.getName().toLowerCase().contains(lowerCaseQuery))
+                .collect(Collectors.toList());
     }
 }

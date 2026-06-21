@@ -1,11 +1,17 @@
 package services;
 
-import java.util.List;
-import java.util.stream.Collectors;
+import exceptions.DuplicateEntryException;
+import exceptions.EntityNotFoundException;
+import exceptions.InvalidBookException;
+import exceptions.InvalidOperationException;
 import models.Book;
+import models.Member;
 import repositories.BookRepository;
-import utilities.InputController;
-import utilities.UIRender;
+
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Locale;
+import java.util.stream.Collectors;
 
 public class BookService {
     private final BookRepository bookRepository;
@@ -14,28 +20,69 @@ public class BookService {
         this.bookRepository = bookRepository;
     }
 
-    public boolean registerBook(Book book) {
-        if (bookRepository.findById(book.getId()) != null) return false;
-        if (isDuplicate(book.getTitle(), book.getAuthor()) || book.getTitle().isEmpty() || book.getAuthor().isEmpty()) {
-            return false;
+    public void registerBook(Book book) throws DuplicateEntryException, InvalidBookException {
+        validateBook(book);
+        if (isDuplicate(book.getTitle(), book.getAuthor())
+                || book.getTitle().isEmpty() || book.getAuthor().isEmpty()) {
+            throw new DuplicateEntryException("Title+Author",
+                    book.getTitle() + " / " + book.getAuthor());
         }
         bookRepository.save(book);
-        return true;
     }
 
-    public boolean updateBook(Book oldBook, Book newBook) {
-        if (oldBook == null || newBook == null) return false;
+    public void updateBook(Book oldBook, Book newBook)
+            throws EntityNotFoundException, InvalidOperationException, InvalidBookException {
+        if (oldBook == null)
+            throw new EntityNotFoundException("Book", "unknown");
         int activeLoans = oldBook.getTotalQuantity() - oldBook.getAvailableQuantity();
-        if (newBook.getTotalQuantity() < activeLoans) {
-            return false; // Dynamic business verification inside service
-        }
+        if (newBook.getTotalQuantity() < activeLoans)
+            throw new InvalidOperationException(
+                    "New quantity (" + newBook.getTotalQuantity() +
+                    ") is less than active loans (" + activeLoans + ").");
+        validateBook(newBook);
         bookRepository.update(oldBook, newBook);
-        return true;
+    }
+
+    public void deleteBook(Book book) throws InvalidOperationException {
+        if (book.getAvailableQuantity() != book.getTotalQuantity())
+            throw new InvalidOperationException(
+                    "Cannot delete book with active loans outstanding.");
+        bookRepository.delete(book);
     }
 
     private boolean isDuplicate(String title, String author) {
         return bookRepository.findAll().stream()
-                .anyMatch(b -> b.getTitle().equalsIgnoreCase(title.trim()) && b.getAuthor().equalsIgnoreCase(author.trim()));
+                .anyMatch(b -> b.getTitle().equalsIgnoreCase(title.trim())
+                        && b.getAuthor().equalsIgnoreCase(author.trim()));
+    }
+
+    public void validateBook(Book book) throws InvalidBookException {
+        if (book == null) {
+            throw new InvalidBookException("Book data cannot be null.");
+        }
+        if (book.getTitle() == null || book.getTitle().trim().isEmpty()) {
+            throw new InvalidBookException("Book title cannot be empty.");
+        }
+        if (book.getAuthor() == null || book.getAuthor().trim().isEmpty()) {
+            throw new InvalidBookException("Book author cannot be empty.");
+        }
+        if (book.getPrice() <= 0) {
+            throw new InvalidBookException("Price must be greater than 0.");
+        }
+        if (book.getTotalQuantity() <= 0) {
+            throw new InvalidBookException("Total quantity must be greater than 0.");
+        }
+        if (book.getAvailableQuantity() < 0) {
+            throw new InvalidBookException("Available quantity cannot be negative.");
+        }
+        if (book.getAvailableQuantity() > book.getTotalQuantity()) {
+            throw new InvalidBookException("Available quantity cannot exceed total quantity.");
+        }
+
+        int currentYear = LocalDate.now().getYear();
+        if (book.getPublicationYear() < 0 || book.getPublicationYear() > currentYear) {
+            throw new InvalidBookException("Publication year must be between 0 and " + currentYear + ".");
+        }
     }
 
     public List<Book> getAllBooks() {
@@ -46,21 +93,14 @@ public class BookService {
         return bookRepository.findById(id);
     }
 
-    public static Book searchAndSelectBook(BookRepository repository) {
-        String query = InputController.getString("Enter Book Search Filter Criteria (Title/ID/Author): ");
-        List<Book> matches = repository.findAll().stream()
-                .filter(b -> b.getId().toLowerCase().contains(query.toLowerCase()) ||
-                        b.getTitle().toLowerCase().contains(query.toLowerCase()) ||
-                        b.getAuthor().toLowerCase().contains(query.toLowerCase()))
-                .collect(Collectors.toList());
-
-        if (matches.isEmpty()) {
-            UIRender.renderError("No matching book records located.");
-            UIRender.pauseEnter();
-            return null;
+    public List<Book> getByQuery(String query) {
+        if (query == null || query.trim().isEmpty()) {
+            return getAllBooks();
         }
-
-        UIRender.renderBookContentTable(matches);
-        return matches.get(0);
+        String lowerCaseQuery = query.toLowerCase();
+        return bookRepository.findAll().stream()
+                .filter(m -> m.getId().toLowerCase().contains(lowerCaseQuery)
+                        || m.getTitle().toLowerCase().contains(lowerCaseQuery) || m.getAuthor().toLowerCase().contains(lowerCaseQuery))
+                .collect(Collectors.toList());
     }
 }

@@ -1,8 +1,12 @@
 package services;
 
-import models.*;
+import exceptions.BorrowPolicyException;
+import exceptions.EntityNotFoundException;
+import models.Book;
+import models.BorrowTransaction;
+import models.Member;
+import models.TransactionStatus;
 import repositories.BorrowTransactionRepository;
-import utilities.UIRender;
 
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
@@ -16,88 +20,56 @@ public class BorrowTransactionService implements BorrowPolicy {
         this.txRepository = txRepository;
     }
 
-    // =========================================================================
-    // 1. TRIỂN KHAI BORROW POLICY (Quy tắc nghiệp vụ cốt lõi)
-    // =========================================================================
-
     @Override
     public boolean isEligibleToBorrow(Member member, Book book) {
-        if (book.getAvailableQuantity() <= 0) {
-            UIRender.renderError("Invalid quantity!");
-            return false;
-        }
-        if (member.getCurrentBorrowLimit() <= 0) {
-
-            UIRender.renderError("Invalid borrow number" + member.getCurrentBorrowLimit());
-            return false;
-        }
-
-        if (book instanceof LimitedDocument) {
-            UIRender.renderError("Limited document can not be borrowed!");
-            return false;
-        }
-
-        if (book instanceof Document) {
-            return (member instanceof PremiumMember);
-        }
-
-        return true;
+        return book.getAvailableQuantity() > 0
+                && member.getRemainingBorrowSlots() > 0
+                && member.canBorrow(book.getBookType());
     }
 
     @Override
     public double calculateFine(BorrowTransaction tx, Member member, Book book) {
-        LocalDate endDate = (tx.getReturnDate() != null) ? tx.getReturnDate() : LocalDate.now();
+        LocalDate endDate = tx.getReturnDate() != null ? tx.getReturnDate() : LocalDate.now();
         long daysLate = ChronoUnit.DAYS.between(tx.getDueDate(), endDate);
-
         if (daysLate <= 0) return 0.0;
-
-        double fineRate = 5000.0;
-
-        if (member instanceof PremiumMember)
-            fineRate = 10000.0;
-
-        return daysLate * fineRate;
+        return daysLate * member.getLateFinePerDay();
     }
 
     @Override
     public int getMaxBorrowDay(Member member) {
-        if (member instanceof PremiumMember)
-            return 28;
-        return 14;
+        return member.getLoanDurationDays();
     }
 
-    // =========================================================================
-    // 2. LUỒNG THỰC THI CHÍNH (Core Workflows tích hợp State Machine)
-    // =========================================================================
-
-    /**
-     * Khởi tạo giao dịch mượn sách.
-     * @return true nếu thành công, false nếu vi phạm chính sách mượn.
-     */
-    public boolean executeCheckout(Member member, Book book, BorrowTransaction tx) {
-        if (!isEligibleToBorrow(member, book)) {
-            System.out.println(member);
-            System.out.println(book);
-            return false;
-        }
+    public void executeCheckout(Member member, Book book, BorrowTransaction tx)
+            throws BorrowPolicyException {
+        if (book.getAvailableQuantity() <= 0)
+            throw new BorrowPolicyException(
+                    "Book '" + book.getTitle() + "' is out of stock.");
+        if (member.getRemainingBorrowSlots() <= 0)
+            throw new BorrowPolicyException(
+                    "Member '" + member.getName() + "' has reached borrow limit of "
+                    + member.getBorrowLimit() + ".");
+        if (!member.canBorrow(book.getBookType()))
+            throw new BorrowPolicyException(
+                    "Tier '" + member.getTierName() + "' cannot borrow "
+                    + book.getBookType() + " books.");
+        if (member.getFine() > 0)
+            throw new BorrowPolicyException(member.getName() + " can not borrow any book because he/she has remaining fine!");
+        if (member.getBorrowHistory().stream()
+                .anyMatch(bx -> bx.getBookId().equals(book.getId())))
+            throw new BorrowPolicyException("Each member can borrow only one copy!");
 
         tx.setTransactionStatus(TransactionStatus.BORROWING);
         tx.setDueDate(tx.getBorrowDate().plusDays(getMaxBorrowDay(member)));
         txRepository.save(tx);
-
         book.setAvailableQuantity(book.getAvailableQuantity() - 1);
-        member.setCurrentBorrowLimit(member.getCurrentBorrowLimit() - 1);
+        member.incrementBorrowedCount();
         member.addTransactionInfo(tx);
-
-        return true;
     }
 
-    /**
-     * Xử lý trả sách.
-     * @return Tiền phạt phát sinh. Trả về -1.0 nếu trạng thái giao dịch không hợp lệ.
-     */
     public double processReturn(BorrowTransaction tx, Member member, Book book, LocalDate returnDate) {
-        if (tx.getTransactionStatus() != TransactionStatus.BORROWING && tx.getTransactionStatus() != TransactionStatus.OVERDUE) {
+        if (tx.getTransactionStatus() != TransactionStatus.BORROWING
+                && tx.getTransactionStatus() != TransactionStatus.OVERDUE) {
             return -1.0;
         }
 
@@ -107,51 +79,64 @@ public class BorrowTransactionService implements BorrowPolicy {
             book.setAvailableQuantity(book.getAvailableQuantity() + 1);
         }
         if (member != null) {
-            member.setCurrentBorrowLimit(member.getCurrentBorrowLimit() + 1);
+            member.decrementBorrowedCount();
         }
 
-        // Tính phạt và kết toán
         double fine = calculateFine(tx, member, book);
-        tx.setFinePaid(fine);
-
         tx.setTransactionStatus(fine > 0 ? TransactionStatus.NOT_PAID : TransactionStatus.IS_PAID);
+        tx.setFinePaid(fine);
+        member.setFine(member.getFine() + tx.getFinePaid());
 
         return fine;
     }
 
-    /**
-     * Xử lý báo mất sách khẩn cấp.
-     * @return Mảng [Tiền đền gốc, Tiền phạt trễ, Tổng hóa đơn]. Trả về null nếu trạng thái không hợp lệ.
-     */
-    public double[] reportMissing(BorrowTransaction tx, Member member, Book book, double replacementCost) {
-        // STATE MACHINE GUARD
-        if (tx.getTransactionStatus() != TransactionStatus.BORROWING && tx.getTransactionStatus() != TransactionStatus.OVERDUE) {
+    public void processPayment(BorrowTransaction borrowTransaction, Member member) {
+        if (borrowTransaction == null || member == null) return;
+
+        TransactionStatus status = borrowTransaction.getTransactionStatus();
+
+        if (status != TransactionStatus.MISSING_NOT_PAID && status != TransactionStatus.NOT_PAID) {
+            return;
+        }
+
+        borrowTransaction.setTransactionStatus(
+                status == TransactionStatus.MISSING_NOT_PAID
+                        ? TransactionStatus.MISSING_AND_IS_PAID
+                        : TransactionStatus.IS_PAID
+        );
+
+// Trừ tiền phạt
+        member.setFine(member.getFine() - borrowTransaction.getFinePaid());
+    }
+
+    public double[] reportMissing(BorrowTransaction tx, Member member, Book book) {
+        if (tx.getTransactionStatus() != TransactionStatus.BORROWING
+                && tx.getTransactionStatus() != TransactionStatus.OVERDUE) {
             return null;
         }
 
         tx.setReturnDate(LocalDate.now());
         tx.setTransactionStatus(TransactionStatus.MISSING_NOT_PAID);
 
-        // Giảm vĩnh viễn sức chứa tổng của kho sách
         if (book != null) {
             book.setTotalQuantity(book.getTotalQuantity() - 1);
+            if (book.getAvailableQuantity() != 0)
+                book.setAvailableQuantity(book.getAvailableQuantity() - 1);
         }
 
-        // Giải phóng hạn mức thẻ (vì thành viên đang chịu trách nhiệm tài chính riêng)
         if (member != null) {
-            member.setCurrentBorrowLimit(member.getCurrentBorrowLimit() + 1);
+            member.decrementBorrowedCount();
         }
 
         double lateFine = calculateFine(tx, member, book);
+        double replacementCost = member.getPolicy().getLostBookMultiplier() * book.getPrice();
         double totalBill = replacementCost + lateFine;
+
         tx.setFinePaid(totalBill);
+        member.setFine(member.getFine() + totalBill);
 
         return new double[]{replacementCost, lateFine, totalBill};
     }
-
-    // =========================================================================
-    // 3. CÁC HÀM TRUY VẤN DỮ LIỆU (Utility Queries)
-    // =========================================================================
 
     public List<BorrowTransaction> getAllTransactions() {
         return txRepository.findAll();
@@ -159,10 +144,64 @@ public class BorrowTransactionService implements BorrowPolicy {
 
     public List<BorrowTransaction> getActiveLoansByMember(String memberId) {
         return txRepository.findAll().stream()
-                .filter(tx -> tx.getMemberId().equalsIgnoreCase(memberId) &&
-                        (tx.getTransactionStatus() == TransactionStatus.BORROWING || tx.getTransactionStatus() == TransactionStatus.OVERDUE))
+                .filter(tx -> tx.getMemberId().equalsIgnoreCase(memberId)
+                        && (tx.getTransactionStatus() == TransactionStatus.BORROWING
+                        || tx.getTransactionStatus() == TransactionStatus.OVERDUE))
                 .collect(Collectors.toList());
     }
+
+    public List<BorrowTransaction> getRequiredPaidTransactionsByMember(String memberId) {
+        return txRepository.findAll()
+                .stream().filter(tx -> tx.getMemberId().equals(memberId) && (
+                        tx.getTransactionStatus() == TransactionStatus.MISSING_NOT_PAID
+                        || tx.getTransactionStatus() == TransactionStatus.NOT_PAID
+                        ))
+                .collect(Collectors.toList());
+    }
+
+    public void updateOverdueTransactions() {
+        LocalDate today = LocalDate.now();
+
+        txRepository.findAll().stream()
+                .filter(tx -> tx.getTransactionStatus() == TransactionStatus.BORROWING)
+                .filter(tx -> tx.getDueDate() != null && tx.getDueDate().isBefore(today))
+                .forEach(tx -> {
+                    tx.setTransactionStatus(TransactionStatus.OVERDUE);
+                    try {
+                        txRepository.update(tx.getTransactionId(), tx);
+                    } catch (EntityNotFoundException ignored) {
+                    }
+                });
+    }
+
+    public void markTransactionsAsBookRemoved(String bookId) {
+        if (bookId == null || bookId.trim().isEmpty()) return;
+
+        txRepository.findAll().stream()
+                .filter(tx -> tx.getBookId().equals(bookId))
+                .forEach(tx -> {
+                    tx.setTransactionStatus(TransactionStatus.BOOK_REMOVED);
+                    try {
+                        txRepository.update(tx.getTransactionId(), tx);
+                    } catch (EntityNotFoundException ignored) {
+                    }
+                });
+    }
+
+    public void markTransactionsAsMemberRemoved(String memberId) {
+        if (memberId == null || memberId.trim().isEmpty()) return;
+
+        txRepository.findAll().stream()
+                .filter(tx -> tx.getMemberId().equals(memberId))
+                .forEach(tx -> {
+                    tx.setTransactionStatus(TransactionStatus.MEMBER_REMOVED);
+                    try {
+                        txRepository.update(tx.getTransactionId(), tx);
+                    } catch (EntityNotFoundException ignored) {
+                    }
+                });
+    }
+
 
     public int countActiveLoans(String memberId) {
         return getActiveLoansByMember(memberId).size();

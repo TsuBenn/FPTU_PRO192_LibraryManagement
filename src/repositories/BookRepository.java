@@ -1,35 +1,31 @@
 package repositories;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
+
 import models.Book;
 
 public class BookRepository {
-    private final List<Book> database = new ArrayList<>();
+    private final Map<String, Book> database = new HashMap<>();
 
     public void save(Book book) {
-        database.add(book);
+        database.put(book.getId(), book);
     }
 
     public void delete(Book book) {
-        database.remove(book);
+        database.remove(book.getId());
     }
 
     public void update(Book oldBook, Book newBook) {
-        int index = database.indexOf(oldBook);
-        if (index != -1) {
-            database.set(index, newBook);
+        if (database.containsKey(oldBook.getId())) {
+            database.put(oldBook.getId(), newBook);
         }
     }
 
     public List<Book> findAll() {
-        return database;
+        return new ArrayList<>(database.values());
     }
 
     public Book findById(String id) {
-        return database.stream()
-                .filter(b -> b.getId().equalsIgnoreCase(id.trim()))
-                .findFirst()
-                .orElse(null);
+        return database.get(id);
     }
 }
