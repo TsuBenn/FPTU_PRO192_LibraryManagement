@@ -51,8 +51,6 @@ exceptions/AbortInputException.java
 exceptions/BorrowPolicyException.java
 exceptions/DuplicateEntryException.java
 exceptions/EntityNotFoundException.java
-exceptions/InvalidBookException.java
-exceptions/InvalidMemberException.java
 exceptions/InvalidOperationException.java
 exceptions/LibraryException.java
 Main.java
@@ -91,19 +89,13 @@ This section contains the contents of the repository's files.
 <file path="config/AppContext.java">
 package config;
 
-import models.Book;
-import models.Member;
 import repositories.*;
 import services.*;
 import utilities.InputController;
-import utilities.TableRenderer;
 
 import java.util.Scanner;
 
 public class AppContext {
-    public static final TableRenderer<Member> MEMBER_TABLE_RENDERER = new utilities.renderers.MemberTableRenderer();
-    public static final TableRenderer<Book> BOOK_TABLE_RENDERER = new utilities.renderers.BookTableRenderer();
-
     public final Scanner scanner;
     public final InputController input;
 
@@ -141,11 +133,11 @@ import policies.*;
 public class DataSeeder {
     public static void seed(AppContext ctx) {
         ctx.bookRepository.save(new Book(
-                "The Great Gatsby", "F. Scott Fitzgerald", "Classic", 1925, 100_000, 5, BookType.NOVEL));
+                "The Great Gatsby", "F. Scott Fitzgerald", "Classic", 1925, 5, BookType.NOVEL));
         ctx.bookRepository.save(new Book(
-                "1984", "George Orwell", "Dystopian", 1949, 200_000, 3, BookType.NOVEL));
+                "1984", "George Orwell", "Dystopian", 1949, 3, BookType.NOVEL));
         ctx.bookRepository.save(new Book(
-                "How to get 10 mark in PRO_192", "FPT Instructor", "Academic", 2024, 300_000, 3, BookType.TEXTBOOK));
+                "How to get 10 mark in PRO_192", "FPT Instructor", "Academic", 2024, 3, BookType.TEXTBOOK));
 
         ctx.memberRepository.save(new Member(
                 "Benn", "0123456789", "benn@uni.edu.vn", new RegularPolicy()));
@@ -159,11 +151,13 @@ public class DataSeeder {
 package controllers.handlers;
 
 import config.AppContext;
-import exceptions.*;
+import exceptions.AbortInputException;
+import exceptions.DuplicateEntryException;
+import exceptions.InvalidOperationException;
+import exceptions.LibraryException;
 import models.Book;
 import repositories.BookRepository;
 import services.BookService;
-import services.BorrowTransactionService;
 import utilities.*;
 
 import java.util.List;
@@ -173,13 +167,13 @@ public class BookHandler {
     private static final TableRenderer<Book> RENDERER = new utilities.renderers.BookTableRenderer();
 
     private final BookService bookService;
+    private final BookRepository bookRepository;
     private final InputController input;
-    private final BorrowTransactionService borrowTransactionService;
 
     public BookHandler(AppContext ctx) {
         this.bookService = ctx.bookService;
+        this.bookRepository = ctx.bookRepository;
         this.input = ctx.input;
-        this.borrowTransactionService = ctx.transactionService;
     }
 
     public void handle() {
@@ -215,10 +209,9 @@ public class BookHandler {
                     UIRender.renderSuccess("Book registered.");
                 }
             }
-        }
-        catch (AbortInputException e) {
+        } catch (AbortInputException e) {
             UIRender.renderError("Cancelled. Returning to menu.");
-        } catch (DuplicateEntryException | InvalidBookException e) {
+        } catch (DuplicateEntryException e) {
             UIRender.renderError(e.getMessage());
         }
         UIRender.pauseEnter();
@@ -227,14 +220,9 @@ public class BookHandler {
     private void handleDelete() {
         UIRender.clearScreen();
         try {
-            Book target = input.searchAndSelectBook(
-                    bookService.getByQuery(
-                            input.getString("Enter book search criteria (Title/Author/ID): ")
-                    )
-            );
+            Book target = searchAndSelectBook();
             if (target == null) return;
             bookService.deleteBook(target);
-            borrowTransactionService.markTransactionsAsBookRemoved(target.getId());
             UIRender.renderSuccess("Book removed.");
         } catch (AbortInputException e) {
             UIRender.renderError("Cancelled. Returning to menu.");
@@ -247,11 +235,7 @@ public class BookHandler {
     private void handleUpdate() {
         UIRender.clearScreen();
         try {
-            Book oldBook = input.searchAndSelectBook(
-                    bookService.getByQuery(
-                            input.getString("Enter book search criteria (Title/Author/ID): ")
-                    )
-            );
+            Book oldBook = searchAndSelectBook();
             if (oldBook == null) return;
 
             Book newBook = input.updateBookModelFields(oldBook);
@@ -278,6 +262,27 @@ public class BookHandler {
         UIRender.renderTable(bookService.getAllBooks(), "Book Inventory", RENDERER);
         UIRender.pauseEnter();
     }
+
+    private Book searchAndSelectBook() {
+        String query = input.getString("Enter search criteria (Title/ID/Author): ");
+        List<Book> matches = bookRepository.findAll().stream()
+                .filter(b -> b.getId().toLowerCase().contains(query.toLowerCase())
+                        || b.getTitle().toLowerCase().contains(query.toLowerCase())
+                        || b.getAuthor().toLowerCase().contains(query.toLowerCase()))
+                .collect(Collectors.toList());
+
+        if (matches.isEmpty()) {
+            UIRender.renderError("No matching books found.");
+            UIRender.pauseEnter();
+            return null;
+        }
+
+        UIRender.renderTable(matches, "Search Results", RENDERER);
+        if (matches.size() == 1) return matches.get(0);
+
+        int idx = input.getChoice("Select book index (1-" + matches.size() + "): ", matches.size());
+        return matches.get(idx - 1);
+    }
 }
 </file>
 
@@ -287,50 +292,46 @@ package controllers.handlers;
 import config.AppContext;
 import exceptions.AbortInputException;
 import exceptions.BorrowPolicyException;
-import models.Book;
-import models.BorrowTransaction;
-import models.Member;
+import models.*;
+import repositories.BookRepository;
+import repositories.MemberRepository;
 import services.BookService;
 import services.BorrowTransactionService;
-import services.MemberService;
-import utilities.ConfirmResult;
-import utilities.InputController;
-import utilities.TableRenderer;
-import utilities.UIRender;
+import utilities.*;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class CirculationHandler {
     private static final TableRenderer<BorrowTransaction> TX_RENDERER =
             new utilities.renderers.TransactionTableRenderer();
+    private static final TableRenderer<Member> MEMBER_RENDERER =
+            new utilities.renderers.MemberTableRenderer();
+    private static final TableRenderer<Book> BOOK_RENDERER =
+            new utilities.renderers.BookTableRenderer();
 
     private final BookService bookService;
-    private final MemberService memberService;
     private final BorrowTransactionService transactionService;
+    private final BookRepository bookRepository;
+    private final MemberRepository memberRepository;
     private final InputController input;
 
     public CirculationHandler(AppContext ctx) {
         this.bookService = ctx.bookService;
         this.transactionService = ctx.transactionService;
-        this.memberService = ctx.memberService;
+        this.bookRepository = ctx.bookRepository;
+        this.memberRepository = ctx.memberRepository;
         this.input = ctx.input;
-        transactionService.updateOverdueTransactions();
     }
 
     public void handleBorrow() {
         UIRender.clearScreen();
         try {
-            Member member = input.searchAndSelectMember(memberService.getByQuery(
-                    input.getString("Enter member search criteria (Name/ID): ")
-            ));
+            Member member = searchAndSelectMember();
             if (member == null) return;
 
-            Book book = input.searchAndSelectBook(
-                    bookService.getByQuery(
-                            input.getString("Enter book search criteria (Title/Author/ID): ")
-                    )
-            );
+            Book book = searchAndSelectBook();
             if (book == null) return;
 
             BorrowTransaction tx = new BorrowTransaction(
@@ -351,9 +352,7 @@ public class CirculationHandler {
     public void handleReturn() {
         UIRender.clearScreen();
         try {
-            Member member = input.searchAndSelectMember(memberService.getByQuery(
-                    input.getString("Enter member search criteria (Name/ID): ")
-            ));
+            Member member = searchAndSelectMember();
             if (member == null) return;
 
             List<BorrowTransaction> activeLoans =
@@ -387,9 +386,7 @@ public class CirculationHandler {
     public void handleLost() {
         UIRender.clearScreen();
         try {
-            Member member = input.searchAndSelectMember(memberService.getByQuery(
-                    input.getString("Enter member search criteria (Name/ID): ")
-            ));
+            Member member = searchAndSelectMember();
             if (member == null) return;
 
             List<BorrowTransaction> activeLoans =
@@ -405,8 +402,9 @@ public class CirculationHandler {
             if (targetTx == null) return;
 
             Book book = bookService.getBookById(targetTx.getBookId());
+            double customCost = input.getValidReplacementCost();
 
-            double[] receipt = transactionService.reportMissing(targetTx, member, book);
+            double[] receipt = transactionService.reportMissing(targetTx, member, book, customCost);
             if (receipt == null) {
                 UIRender.renderError("Asset must be currently out on loan.");
             } else {
@@ -419,39 +417,45 @@ public class CirculationHandler {
         UIRender.pauseEnter();
     }
 
-    public void handlePayment() {
-        Member member = input.searchAndSelectMember(memberService.getByQuery(
-                input.getString("Enter member search criteria (Name/ID): ")
-        ));
-        if (member == null) return;
+    private Member searchAndSelectMember() {
+        String query = input.getString("Enter search criteria (Name/ID): ");
+        List<Member> matches = memberRepository.findAll().stream()
+                .filter(m -> m.getId().toLowerCase().contains(query.toLowerCase())
+                        || m.getName().toLowerCase().contains(query.toLowerCase()))
+                .collect(Collectors.toList());
 
-        List<BorrowTransaction> requiredPaidTransactions =
-                transactionService.getRequiredPaidTransactionsByMember(member.getId());
-        if (requiredPaidTransactions == null) {
-            UIRender.renderSuccess(member.getName() + " has no fine to resolve!");
-            return;
+        if (matches.isEmpty()) {
+            UIRender.renderError("No matching members found.");
+            UIRender.pauseEnter();
+            return null;
         }
 
-        UIRender.renderTable(requiredPaidTransactions, "Required pay", TX_RENDERER);
-        try {
-            int numberOfResolvePayment = input.getInt("Enter number you want to resolve: ");
-            while (numberOfResolvePayment > 0) {
-                UIRender.renderError("Cancelled. Returning to menu.");
-                int index = input.getInt("Enter index: ");
-                if (index > 0 && index < requiredPaidTransactions.size()) {
-                    UIRender.renderSuccess("Resolve this transaction!");
-                    ConfirmResult c = input.getConfirmation();
-                    if (c == ConfirmResult.CONFIRM)
-                        transactionService.processPayment(
-                                requiredPaidTransactions.get(index),
-                                member
-                        );
-                }
-                numberOfResolvePayment--;
-            }
-        } catch (AbortInputException e) {
-            UIRender.renderError("Cancelled. Returning to menu.");
+        UIRender.renderTable(matches, "Search Results", MEMBER_RENDERER);
+        if (matches.size() == 1) return matches.get(0);
+
+        int idx = input.getChoice("Select member index (1-" + matches.size() + "): ", matches.size());
+        return matches.get(idx - 1);
+    }
+
+    private Book searchAndSelectBook() {
+        String query = input.getString("Enter search criteria (Title/ID/Author): ");
+        List<Book> matches = bookRepository.findAll().stream()
+                .filter(b -> b.getId().toLowerCase().contains(query.toLowerCase())
+                        || b.getTitle().toLowerCase().contains(query.toLowerCase())
+                        || b.getAuthor().toLowerCase().contains(query.toLowerCase()))
+                .collect(Collectors.toList());
+
+        if (matches.isEmpty()) {
+            UIRender.renderError("No matching books found.");
+            UIRender.pauseEnter();
+            return null;
         }
+
+        UIRender.renderTable(matches, "Search Results", BOOK_RENDERER);
+        if (matches.size() == 1) return matches.get(0);
+
+        int idx = input.getChoice("Select book index (1-" + matches.size() + "): ", matches.size());
+        return matches.get(idx - 1);
     }
 }
 </file>
@@ -474,15 +478,17 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 public class MemberHandler {
+    private static final TableRenderer<Member> RENDERER = new utilities.renderers.MemberTableRenderer();
+
     private final MemberService memberService;
+    private final MemberRepository memberRepository;
     private final BorrowTransactionService transactionService;
-    private final BorrowTransactionService borrowTransactionService;
     private final InputController input;
 
     public MemberHandler(AppContext ctx) {
         this.memberService = ctx.memberService;
+        this.memberRepository = ctx.memberRepository;
         this.transactionService = ctx.transactionService;
-        this.borrowTransactionService = ctx.transactionService;
         this.input = ctx.input;
     }
 
@@ -530,13 +536,10 @@ public class MemberHandler {
     private void handleDelete() {
         UIRender.clearScreen();
         try {
-            Member target = input.searchAndSelectMember(memberService.getByQuery(
-                    input.getString("Enter member search criteria (Name/ID): ")
-            ));
+            Member target = searchAndSelectMember();
             if (target == null) return;
             int activeLoans = transactionService.countActiveLoans(target.getId());
             memberService.deleteMember(target, activeLoans);
-            borrowTransactionService.markTransactionsAsMemberRemoved(target.getId());
             UIRender.renderSuccess("Member removed.");
         } catch (AbortInputException e) {
             UIRender.renderError("Cancelled. Returning to menu.");
@@ -549,9 +552,7 @@ public class MemberHandler {
     private void handleUpdate() {
         UIRender.clearScreen();
         try {
-            Member oldMember = input.searchAndSelectMember(memberService.getByQuery(
-                    input.getString("Enter member search criteria (Name/ID): ")
-            ));
+            Member oldMember = searchAndSelectMember();
             if (oldMember == null) return;
 
             Member newMember = input.updateMemberModelFields(oldMember);
@@ -575,8 +576,28 @@ public class MemberHandler {
 
     private void handleList() {
         UIRender.clearScreen();
-        UIRender.renderTable(memberService.getAllMembers(), "Member Directory", AppContext.MEMBER_TABLE_RENDERER);
+        UIRender.renderTable(memberService.getAllMembers(), "Member Directory", RENDERER);
         UIRender.pauseEnter();
+    }
+
+    private Member searchAndSelectMember() {
+        String query = input.getString("Enter search criteria (Name/ID): ");
+        List<Member> matches = memberRepository.findAll().stream()
+                .filter(m -> m.getId().toLowerCase().contains(query.toLowerCase())
+                        || m.getName().toLowerCase().contains(query.toLowerCase()))
+                .collect(Collectors.toList());
+
+        if (matches.isEmpty()) {
+            UIRender.renderError("No matching members found.");
+            UIRender.pauseEnter();
+            return null;
+        }
+
+        UIRender.renderTable(matches, "Search Results", RENDERER);
+        if (matches.size() == 1) return matches.get(0);
+
+        int idx = input.getChoice("Select member index (1-" + matches.size() + "): ", matches.size());
+        return matches.get(idx - 1);
     }
 }
 </file>
@@ -584,14 +605,12 @@ public class MemberHandler {
 <file path="controllers/handlers/ReportHandler.java">
 package controllers.handlers;
 
-import com.sun.javaws.security.AppPolicy;
 import config.AppContext;
 import exceptions.AbortInputException;
 import models.Book;
 import models.BorrowTransaction;
 import models.Member;
 import repositories.MemberRepository;
-import services.MemberService;
 import services.ReportService;
 import utilities.*;
 
@@ -601,14 +620,18 @@ import java.util.stream.Collectors;
 public class ReportHandler {
     private static final TableRenderer<BorrowTransaction> TX_RENDERER =
             new utilities.renderers.TransactionTableRenderer();
+    private static final TableRenderer<Book> BOOK_RENDERER =
+            new utilities.renderers.BookTableRenderer();
+    private static final TableRenderer<Member> MEMBER_RENDERER =
+            new utilities.renderers.MemberTableRenderer();
 
     private final ReportService reportService;
-    private final MemberService memberService;
+    private final MemberRepository memberRepository;
     private final InputController input;
 
     public ReportHandler(AppContext ctx) {
         this.reportService = ctx.reportService;
-        this.memberService = ctx.memberService;
+        this.memberRepository = ctx.memberRepository;
         this.input = ctx.input;
     }
 
@@ -634,11 +657,7 @@ public class ReportHandler {
     private void handleMemberHistory() {
         UIRender.clearScreen();
         try {
-            Member member = input.searchAndSelectMember(
-                    memberService.getByQuery(
-                            input.getString("Enter member info to find: ")
-                    )
-            );
+            Member member = searchAndSelectMember();
             if (member != null) {
                 UIRender.renderTable(reportService.getSortedMemberHistory(member),
                         "Member History", TX_RENDERER);
@@ -665,11 +684,31 @@ public class ReportHandler {
         UIRender.clearScreen();
         try {
             int cap = input.getInt("Enter display cap count: ");
-            UIRender.renderTable(reportService.getPopularBooks(cap), "Popular Books", AppContext.BOOK_TABLE_RENDERER);
+            UIRender.renderTable(reportService.getPopularBooks(cap), "Popular Books", BOOK_RENDERER);
         } catch (AbortInputException e) {
             UIRender.renderError("Cancelled. Returning to menu.");
         }
         UIRender.pauseEnter();
+    }
+
+    private Member searchAndSelectMember() {
+        String query = input.getString("Enter search criteria (Name/ID): ");
+        List<Member> matches = memberRepository.findAll().stream()
+                .filter(m -> m.getId().toLowerCase().contains(query.toLowerCase())
+                        || m.getName().toLowerCase().contains(query.toLowerCase()))
+                .collect(Collectors.toList());
+
+        if (matches.isEmpty()) {
+            UIRender.renderError("No matching members found.");
+            UIRender.pauseEnter();
+            return null;
+        }
+
+        UIRender.renderTable(matches, "Search Results", MEMBER_RENDERER);
+        if (matches.size() == 1) return matches.get(0);
+
+        int idx = input.getChoice("Select member index (1-" + matches.size() + "): ", matches.size());
+        return matches.get(idx - 1);
     }
 }
 </file>
@@ -706,20 +745,18 @@ public class LibraryController {
         String[] modules = {
                 "Book Management", "Member Management",
                 "Borrow Book", "Return Book", "Report Lost Book",
-                "Analytics Dashboard",
-                "Resolve fine money"
+                "Analytics Dashboard"
         };
         while (running) {
             UIRender.clearScreen();
             UIRender.renderMenu("Library System", modules);
-            switch (input.getChoice("Select: ", 7)) {
+            switch (input.getChoice("Select: ", 6)) {
                 case 1: bookHandler.handle(); break;
                 case 2: memberHandler.handle(); break;
                 case 3: circulationHandler.handleBorrow(); break;
                 case 4: circulationHandler.handleReturn(); break;
                 case 5: circulationHandler.handleLost(); break;
                 case 6: reportHandler.handle(); break;
-                case 7: circulationHandler.handlePayment(); break;
                 case 0: running = false; break;
             }
         }
@@ -767,26 +804,6 @@ public class EntityNotFoundException extends LibraryException {
 }
 </file>
 
-<file path="exceptions/InvalidBookException.java">
-package exceptions;
-
-public class InvalidBookException extends LibraryException{
-    public InvalidBookException(String message) {
-        super(message);
-    }
-}
-</file>
-
-<file path="exceptions/InvalidMemberException.java">
-package exceptions;
-
-public class InvalidMemberException extends LibraryException{
-    public InvalidMemberException(String message) {
-        super(message);
-    }
-}
-</file>
-
 <file path="exceptions/InvalidOperationException.java">
 package exceptions;
 
@@ -827,20 +844,18 @@ public class Book {
     private String title;
     private String author;
     private String genre;
-    private double price;
     private int publicationYear;
     private int totalQuantity;
     private int availableQuantity;
     private final BookType bookType;
 
-    public Book(String title, String author, String genre, int publicationYear, double prices, int totalQuantity, BookType bookType) {
+    public Book(String title, String author, String genre, int publicationYear, int totalQuantity, BookType bookType) {
         this.id = IDManager.bookIDGenerator.newID();
         this.title = title;
         this.author = author;
         this.genre = genre;
         this.publicationYear = publicationYear;
         this.totalQuantity = totalQuantity;
-        this.price = prices;
         this.availableQuantity = totalQuantity;
         this.bookType = bookType;
     }
@@ -876,15 +891,6 @@ public class Book {
     public int getAvailableQuantity() { return availableQuantity; }
     public void setAvailableQuantity(int availableQuantity) { this.availableQuantity = availableQuantity; }
     public BookType getBookType() { return bookType; }
-
-    public double getPrice() {
-        return price;
-    }
-
-    public void setPrice(double price) {
-        if (price > 0)
-            this.price = price;
-    }
 
     @Override
     public String toString() {
@@ -931,6 +937,7 @@ public class BorrowTransaction {
         this.borrowDate = borrowDate;
         this.dueDate = borrowDate.plusDays(14);
         this.returnDate = null;
+        this.finePaid = 0.0;
     }
 
     public String getTransactionId() { return transactionId; }
@@ -942,6 +949,8 @@ public class BorrowTransaction {
     public LocalDate getDueDate() { return dueDate; }
     public LocalDate getReturnDate() { return returnDate; }
     public void setReturnDate(LocalDate returnDate) { this.returnDate = returnDate; }
+    public double getFinePaid() { return finePaid; }
+    public void setFinePaid(double finePaid) { this.finePaid = finePaid; }
 
     public TransactionStatus getTransactionStatus() {
         return transactionStatus;
@@ -960,16 +969,7 @@ public class BorrowTransaction {
     public String toString() {
         String returnDateStr = (returnDate == null) ? "OUT_ON_LOAN" : returnDate.toString();
         return transactionId + "|" + memberId + "|" + bookId + "|" + borrowDate + "|" + dueDate
-                + "|" + returnDateStr + "|" + String.format("%.0f", finePaid );
-    }
-
-    public void setFinePaid(double finePaid) {
-        if (returnDate != null)
-            this.finePaid = finePaid;
-    }
-
-    public double getFinePaid() {
-        return finePaid;
+                + "|" + returnDateStr + "|" + String.format("%.0f", finePaid);
     }
 }
 </file>
@@ -988,7 +988,6 @@ public class Member {
     private String name;
     private String phone;
     private String email;
-    private double fine;
     private final List<BorrowTransaction> borrowHistory = new ArrayList<>();
     private MemberPolicy policy;
     private int borrowedCount = 0;
@@ -1034,13 +1033,6 @@ public class Member {
     public void setEmail(String email) { this.email = email; }
     public MemberPolicy getPolicy() { return policy; }
     public int getBorrowedCount() { return borrowedCount; }
-    public double getFine() {
-        return fine;
-    }
-    public void setFine(double fine) {
-        if (fine > 0)
-            this.fine = fine;
-    }
 
     public void addTransactionInfo(BorrowTransaction borrowTransaction) {
         if (borrowTransaction != null)
@@ -1187,7 +1179,6 @@ package repositories;
 
 import java.util.*;
 
-import exceptions.EntityNotFoundException;
 import models.BorrowTransaction;
 
 public class BorrowTransactionRepository {
@@ -1203,13 +1194,6 @@ public class BorrowTransactionRepository {
 
     public BorrowTransaction findById(String id) {
         return database.get(id);
-    }
-
-    public void update(String id, BorrowTransaction borrowTransaction) throws EntityNotFoundException {
-        BorrowTransaction old = database.get(id);
-        if (old == null)
-            throw new EntityNotFoundException("Borrow transaction", "Can not found borrow transaction with this id " + id);
-        database.put(id, borrowTransaction);
     }
 }
 </file>
@@ -1253,16 +1237,11 @@ package services;
 
 import exceptions.DuplicateEntryException;
 import exceptions.EntityNotFoundException;
-import exceptions.InvalidBookException;
 import exceptions.InvalidOperationException;
 import models.Book;
-import models.Member;
 import repositories.BookRepository;
 
-import java.time.LocalDate;
 import java.util.List;
-import java.util.Locale;
-import java.util.stream.Collectors;
 
 public class BookService {
     private final BookRepository bookRepository;
@@ -1271,8 +1250,7 @@ public class BookService {
         this.bookRepository = bookRepository;
     }
 
-    public void registerBook(Book book) throws DuplicateEntryException, InvalidBookException {
-        validateBook(book);
+    public void registerBook(Book book) throws DuplicateEntryException {
         if (isDuplicate(book.getTitle(), book.getAuthor())
                 || book.getTitle().isEmpty() || book.getAuthor().isEmpty()) {
             throw new DuplicateEntryException("Title+Author",
@@ -1282,7 +1260,7 @@ public class BookService {
     }
 
     public void updateBook(Book oldBook, Book newBook)
-            throws EntityNotFoundException, InvalidOperationException, InvalidBookException {
+            throws EntityNotFoundException, InvalidOperationException {
         if (oldBook == null)
             throw new EntityNotFoundException("Book", "unknown");
         int activeLoans = oldBook.getTotalQuantity() - oldBook.getAvailableQuantity();
@@ -1290,7 +1268,6 @@ public class BookService {
             throw new InvalidOperationException(
                     "New quantity (" + newBook.getTotalQuantity() +
                     ") is less than active loans (" + activeLoans + ").");
-        validateBook(newBook);
         bookRepository.update(oldBook, newBook);
     }
 
@@ -1307,52 +1284,12 @@ public class BookService {
                         && b.getAuthor().equalsIgnoreCase(author.trim()));
     }
 
-    public void validateBook(Book book) throws InvalidBookException {
-        if (book == null) {
-            throw new InvalidBookException("Book data cannot be null.");
-        }
-        if (book.getTitle() == null || book.getTitle().trim().isEmpty()) {
-            throw new InvalidBookException("Book title cannot be empty.");
-        }
-        if (book.getAuthor() == null || book.getAuthor().trim().isEmpty()) {
-            throw new InvalidBookException("Book author cannot be empty.");
-        }
-        if (book.getPrice() <= 0) {
-            throw new InvalidBookException("Price must be greater than 0.");
-        }
-        if (book.getTotalQuantity() <= 0) {
-            throw new InvalidBookException("Total quantity must be greater than 0.");
-        }
-        if (book.getAvailableQuantity() < 0) {
-            throw new InvalidBookException("Available quantity cannot be negative.");
-        }
-        if (book.getAvailableQuantity() > book.getTotalQuantity()) {
-            throw new InvalidBookException("Available quantity cannot exceed total quantity.");
-        }
-
-        int currentYear = LocalDate.now().getYear();
-        if (book.getPublicationYear() < 0 || book.getPublicationYear() > currentYear) {
-            throw new InvalidBookException("Publication year must be between 0 and " + currentYear + ".");
-        }
-    }
-
     public List<Book> getAllBooks() {
         return bookRepository.findAll();
     }
 
     public Book getBookById(String id) {
         return bookRepository.findById(id);
-    }
-
-    public List<Book> getByQuery(String query) {
-        if (query == null || query.trim().isEmpty()) {
-            return getAllBooks();
-        }
-        String lowerCaseQuery = query.toLowerCase();
-        return bookRepository.findAll().stream()
-                .filter(m -> m.getId().toLowerCase().contains(lowerCaseQuery)
-                        || m.getTitle().toLowerCase().contains(lowerCaseQuery) || m.getAuthor().toLowerCase().contains(lowerCaseQuery))
-                .collect(Collectors.toList());
     }
 }
 </file>
@@ -1375,11 +1312,7 @@ public interface BorrowPolicy {
 package services;
 
 import exceptions.BorrowPolicyException;
-import exceptions.EntityNotFoundException;
-import models.Book;
-import models.BorrowTransaction;
-import models.Member;
-import models.TransactionStatus;
+import models.*;
 import repositories.BorrowTransactionRepository;
 
 import java.time.LocalDate;
@@ -1427,11 +1360,6 @@ public class BorrowTransactionService implements BorrowPolicy {
             throw new BorrowPolicyException(
                     "Tier '" + member.getTierName() + "' cannot borrow "
                     + book.getBookType() + " books.");
-        if (member.getFine() > 0)
-            throw new BorrowPolicyException(member.getName() + " can not borrow any book because he/she has remaining fine!");
-        if (member.getBorrowHistory().stream()
-                .anyMatch(bx -> bx.getBookId().equals(book.getId())))
-            throw new BorrowPolicyException("Each member can borrow only one copy!");
 
         tx.setTransactionStatus(TransactionStatus.BORROWING);
         tx.setDueDate(tx.getBorrowDate().plusDays(getMaxBorrowDay(member)));
@@ -1457,33 +1385,13 @@ public class BorrowTransactionService implements BorrowPolicy {
         }
 
         double fine = calculateFine(tx, member, book);
-        tx.setTransactionStatus(fine > 0 ? TransactionStatus.NOT_PAID : TransactionStatus.IS_PAID);
         tx.setFinePaid(fine);
-        member.setFine(member.getFine() + tx.getFinePaid());
+        tx.setTransactionStatus(fine > 0 ? TransactionStatus.NOT_PAID : TransactionStatus.IS_PAID);
 
         return fine;
     }
 
-    public void processPayment(BorrowTransaction borrowTransaction, Member member) {
-        if (borrowTransaction == null || member == null) return;
-
-        TransactionStatus status = borrowTransaction.getTransactionStatus();
-
-        if (status != TransactionStatus.MISSING_NOT_PAID && status != TransactionStatus.NOT_PAID) {
-            return;
-        }
-
-        borrowTransaction.setTransactionStatus(
-                status == TransactionStatus.MISSING_NOT_PAID
-                        ? TransactionStatus.MISSING_AND_IS_PAID
-                        : TransactionStatus.IS_PAID
-        );
-
-// Trừ tiền phạt
-        member.setFine(member.getFine() - borrowTransaction.getFinePaid());
-    }
-
-    public double[] reportMissing(BorrowTransaction tx, Member member, Book book) {
+    public double[] reportMissing(BorrowTransaction tx, Member member, Book book, double replacementCost) {
         if (tx.getTransactionStatus() != TransactionStatus.BORROWING
                 && tx.getTransactionStatus() != TransactionStatus.OVERDUE) {
             return null;
@@ -1494,8 +1402,6 @@ public class BorrowTransactionService implements BorrowPolicy {
 
         if (book != null) {
             book.setTotalQuantity(book.getTotalQuantity() - 1);
-            if (book.getAvailableQuantity() != 0)
-                book.setAvailableQuantity(book.getAvailableQuantity() - 1);
         }
 
         if (member != null) {
@@ -1503,11 +1409,8 @@ public class BorrowTransactionService implements BorrowPolicy {
         }
 
         double lateFine = calculateFine(tx, member, book);
-        double replacementCost = member.getPolicy().getLostBookMultiplier() * book.getPrice();
         double totalBill = replacementCost + lateFine;
-
         tx.setFinePaid(totalBill);
-        member.setFine(member.getFine() + totalBill);
 
         return new double[]{replacementCost, lateFine, totalBill};
     }
@@ -1523,59 +1426,6 @@ public class BorrowTransactionService implements BorrowPolicy {
                         || tx.getTransactionStatus() == TransactionStatus.OVERDUE))
                 .collect(Collectors.toList());
     }
-
-    public List<BorrowTransaction> getRequiredPaidTransactionsByMember(String memberId) {
-        return txRepository.findAll()
-                .stream().filter(tx -> tx.getMemberId().equals(memberId) && (
-                        tx.getTransactionStatus() == TransactionStatus.MISSING_NOT_PAID
-                        || tx.getTransactionStatus() == TransactionStatus.NOT_PAID
-                        ))
-                .collect(Collectors.toList());
-    }
-
-    public void updateOverdueTransactions() {
-        LocalDate today = LocalDate.now();
-
-        txRepository.findAll().stream()
-                .filter(tx -> tx.getTransactionStatus() == TransactionStatus.BORROWING)
-                .filter(tx -> tx.getDueDate() != null && tx.getDueDate().isBefore(today))
-                .forEach(tx -> {
-                    tx.setTransactionStatus(TransactionStatus.OVERDUE);
-                    try {
-                        txRepository.update(tx.getTransactionId(), tx);
-                    } catch (EntityNotFoundException ignored) {
-                    }
-                });
-    }
-
-    public void markTransactionsAsBookRemoved(String bookId) {
-        if (bookId == null || bookId.trim().isEmpty()) return;
-
-        txRepository.findAll().stream()
-                .filter(tx -> tx.getBookId().equals(bookId))
-                .forEach(tx -> {
-                    tx.setTransactionStatus(TransactionStatus.BOOK_REMOVED);
-                    try {
-                        txRepository.update(tx.getTransactionId(), tx);
-                    } catch (EntityNotFoundException ignored) {
-                    }
-                });
-    }
-
-    public void markTransactionsAsMemberRemoved(String memberId) {
-        if (memberId == null || memberId.trim().isEmpty()) return;
-
-        txRepository.findAll().stream()
-                .filter(tx -> tx.getMemberId().equals(memberId))
-                .forEach(tx -> {
-                    tx.setTransactionStatus(TransactionStatus.MEMBER_REMOVED);
-                    try {
-                        txRepository.update(tx.getTransactionId(), tx);
-                    } catch (EntityNotFoundException ignored) {
-                    }
-                });
-    }
-
 
     public int countActiveLoans(String memberId) {
         return getActiveLoansByMember(memberId).size();
@@ -1596,6 +1446,7 @@ import exceptions.EntityNotFoundException;
 import exceptions.InvalidOperationException;
 import models.Member;
 import repositories.MemberRepository;
+import utilities.UIRender;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -1664,15 +1515,24 @@ public class MemberService {
         return memberRepository.findById(id);
     }
 
-    public List<Member> getByQuery(String query) {
-        if (query == null || query.trim().isEmpty()) {
-            return getAllMembers();
-        }
-        String lowerCaseQuery = query.toLowerCase();
-        return memberRepository.findAll().stream()
-                .filter(m -> m.getId().toLowerCase().contains(lowerCaseQuery)
-                        || m.getName().toLowerCase().contains(lowerCaseQuery))
+    public Member searchAndSelectMember() {
+        String query = input.getString("Enter search criteria (Name/ID): ");
+        List<Member> matches = memberRepository.findAll().stream()
+                .filter(m -> m.getId().toLowerCase().contains(query.toLowerCase())
+                        || m.getName().toLowerCase().contains(query.toLowerCase()))
                 .collect(Collectors.toList());
+
+        if (matches.isEmpty()) {
+            UIRender.renderError("No matching members found.");
+            UIRender.pauseEnter();
+            return null;
+        }
+
+        UIRender.renderTable(matches, "Search Results", RENDERER);
+        if (matches.size() == 1) return matches.get(0);
+
+        int idx = input.getChoice("Select member index (1-" + matches.size() + "): ", matches.size());
+        return matches.get(idx - 1);
     }
 }
 </file>
@@ -1733,7 +1593,6 @@ public class ReportService {
         int cap = threshold <= 0 ? 5 : threshold;
 
         Map<String, Long> frequencyMap = transactionService.getAllTransactions().stream()
-                .filter(bx -> bx.getTransactionStatus() != TransactionStatus.BOOK_REMOVED && bx.getTransactionStatus() != TransactionStatus.MEMBER_REMOVED)
                 .collect(Collectors.groupingBy(BorrowTransaction::getBookId, Collectors.counting()));
 
         return frequencyMap.entrySet().stream()
@@ -1786,13 +1645,8 @@ public class IDManager {
 <file path="utilities/InputController.java">
 package utilities;
 
-import config.AppContext;
 import exceptions.AbortInputException;
-import exceptions.InvalidBookException;
-import models.Book;
-import models.BookType;
-import models.BorrowTransaction;
-import models.Member;
+import models.*;
 import policies.*;
 
 import java.time.LocalDate;
@@ -1890,7 +1744,6 @@ public class InputController {
         String title = getString("Enter Book Title: ");
         String author = getString("Enter Author: ");
         String genre = getString("Enter Genre: ");
-        double price = getDouble("Enter book price: ");
         int year = getValidPublicationYear();
         int qty = getValidQuantity();
 
@@ -1908,7 +1761,7 @@ public class InputController {
             case 4: bookType = BookType.LIMITED; break;
             default: bookType = BookType.NOVEL; break;
         }
-        return new Book(title, author, genre, year, price, qty, bookType);
+        return new Book(title, author, genre, year, qty, bookType);
     }
 
     public Member inputNewMemberData() {
@@ -1933,64 +1786,51 @@ public class InputController {
         return new Member(name, phone, email, policy);
     }
 
-    public Book updateBookModelFields(Book currentBook) throws InvalidBookException {
+    public Book updateBookModelFields(Book currentBook) {
         System.out.println("\n[INFO] Press Enter to skip a field and keep current values.\n");
-
-        // 1. Đọc dữ liệu từ người dùng nhập vào
         String title = getString("Update Title [" + currentBook.getTitle() + "]: ");
         String author = getString("Update Author [" + currentBook.getAuthor() + "]: ");
         String genre = getString("Update Genre [" + currentBook.getGenre() + "]: ");
-        String priceRaw = getString("Update Price [" + currentBook.getPrice() + "]: ");
-        String yearRaw = getString("Update Publication Year [" + currentBook.getPublicationYear() + "]: ");
-        String qtyRaw = getString("Update Max Stock Quantity [" + currentBook.getTotalQuantity() + "]: ");
 
         String updatedTitle = title.isEmpty() ? currentBook.getTitle() : title;
         String updatedAuthor = author.isEmpty() ? currentBook.getAuthor() : author;
         String updatedGenre = genre.isEmpty() ? currentBook.getGenre() : genre;
 
-        double updatedPrice = currentBook.getPrice();
-        if (!priceRaw.isEmpty()) {
-            if (!Validator.isValidDouble(priceRaw)) {
-                throw new InvalidBookException("Invalid price input format!");
-            }
-            double parsedPrice = Double.parseDouble(priceRaw);
-            if (parsedPrice < 0) {
-                throw new InvalidBookException("Price cannot be negative!");
-            }
-            updatedPrice = parsedPrice;
-        }
-
         int updatedYear = currentBook.getPublicationYear();
-        if (!yearRaw.isEmpty()) {
-            if (!Validator.isValidInt(yearRaw)) {
-                throw new InvalidBookException("Invalid publication year format!");
+        while (true) {
+            String yearRaw = getString("Update Publication Year [" + currentBook.getPublicationYear() + "]: ");
+            if (yearRaw.isEmpty()) break;
+            if (Validator.isValidInt(yearRaw)) {
+                int year = Integer.parseInt(yearRaw);
+                if (year >= 0 && year <= LocalDate.now().getYear()) {
+                    updatedYear = year;
+                    break;
+                }
             }
-            int parsedYear = Integer.parseInt(yearRaw);
-            int currentSystemYear = LocalDate.now().getYear();
-            if (parsedYear < 0 || parsedYear > currentSystemYear) {
-                throw new InvalidBookException("Publication year must be between 0 and " + currentSystemYear);
-            }
-            updatedYear = parsedYear;
+            UIRender.renderError("Invalid publication year limits.");
         }
 
         int updatedTotalQty = currentBook.getTotalQuantity();
-        if (!qtyRaw.isEmpty()) {
-            if (!Validator.isValidInt(qtyRaw)) {
-                throw new InvalidBookException("Invalid stock quantity format!");
+        while (true) {
+            String qtyRaw = getString("Update Max Stock Quantity [" + currentBook.getTotalQuantity() + "]: ");
+            if (qtyRaw.isEmpty()) break;
+            if (Validator.isValidInt(qtyRaw)) {
+                int total = Integer.parseInt(qtyRaw);
+                if (total <= 0) {
+                    UIRender.renderError("Quantity must be positive.");
+                } else {
+                    updatedTotalQty = total;
+                    break;
+                }
+            } else {
+                UIRender.renderError("Invalid integer format.");
             }
-            int parsedQty = Integer.parseInt(qtyRaw);
-            if (parsedQty <= 0) {
-                throw new InvalidBookException("Max stock quantity must be positive!");
-            }
-            updatedTotalQty = parsedQty;
         }
 
         Book newBook = new Book(currentBook.getId(), updatedTitle, updatedAuthor, updatedGenre,
                 updatedYear, updatedTotalQty, currentBook.getBookType());
-
         newBook.setAvailableQuantity(currentBook.getAvailableQuantity()
                 + (updatedTotalQty - currentBook.getTotalQuantity()));
-
         return newBook;
     }
 
@@ -2036,34 +1876,6 @@ public class InputController {
         UIRender.renderError("Index reference mismatch.");
         return null;
     }
-
-    public Member searchAndSelectMember(List<Member> matches) {
-        if (matches.isEmpty()) {
-            UIRender.renderError("No matching members found.");
-            UIRender.pauseEnter();
-            return null;
-        }
-
-        UIRender.renderTable(matches, "Search Results", AppContext.MEMBER_TABLE_RENDERER);
-        if (matches.size() == 1) return matches.get(0);
-
-        int idx = getChoice("Select member index (1-" + matches.size() + "): ", matches.size());
-        return matches.get(idx - 1);
-    }
-
-    public Book searchAndSelectBook(List<Book> matches) {
-        if (matches.isEmpty()) {
-            UIRender.renderError("No matching book found.");
-            UIRender.pauseEnter();
-            return null;
-        }
-
-        UIRender.renderTable(matches, "Search Results", AppContext.BOOK_TABLE_RENDERER );
-        if (matches.size() == 1) return matches.get(0);
-
-        int idx = getChoice("Select member index (1-" + matches.size() + "): ", matches.size());
-        return matches.get(idx - 1);
-    }
 }
 </file>
 
@@ -2076,18 +1888,17 @@ import utilities.TableRenderer;
 public class BookTableRenderer implements TableRenderer<Book> {
     @Override
     public String[] getHeaders() {
-        return new String[]{"ID", "Title", "Author", "Genre", "Year", "Prices", "Available", "Total", "Type"};
+        return new String[]{"ID", "Title", "Author", "Genre", "Year", "Available", "Total", "Type"};
     }
 
     @Override
     public String[] toRow(Book b) {
         return new String[]{
-                b.getId(), b.getTitle(), b.getAuthor(), b.getGenre(),
-                String.valueOf(b.getPublicationYear()),
-                String.valueOf(b.getPrice()),
-                String.valueOf(b.getAvailableQuantity()),
-                String.valueOf(b.getTotalQuantity()),
-                b.getBookType().name()
+            b.getId(), b.getTitle(), b.getAuthor(), b.getGenre(),
+            String.valueOf(b.getPublicationYear()),
+            String.valueOf(b.getAvailableQuantity()),
+            String.valueOf(b.getTotalQuantity()),
+            b.getBookType().name()
         };
     }
 }
@@ -2102,16 +1913,15 @@ import utilities.TableRenderer;
 public class MemberTableRenderer implements TableRenderer<Member> {
     @Override
     public String[] getHeaders() {
-        return new String[]{"ID", "Name", "Phone", "Email", "Fine", "Limit", "Tier"};
+        return new String[]{"ID", "Name", "Phone", "Email", "Limit", "Tier"};
     }
 
     @Override
     public String[] toRow(Member m) {
         return new String[]{
-                m.getId(), m.getName(), m.getPhone(), m.getEmail(),
-                String.valueOf(m.getFine()),
-                String.valueOf(m.getBorrowLimit()),
-                m.getTierName()
+            m.getId(), m.getName(), m.getPhone(), m.getEmail(),
+            String.valueOf(m.getBorrowLimit()),
+            m.getTierName()
         };
     }
 }

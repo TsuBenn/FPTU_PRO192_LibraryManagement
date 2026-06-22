@@ -2,9 +2,11 @@ package services;
 
 import exceptions.DuplicateEntryException;
 import exceptions.EntityNotFoundException;
+import exceptions.InvalidMemberException;
 import exceptions.InvalidOperationException;
 import models.Member;
 import repositories.MemberRepository;
+import utilities.Validator;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -16,7 +18,17 @@ public class MemberService {
         this.memberRepository = memberRepository;
     }
 
-    public void registerMember(Member member) throws DuplicateEntryException {
+    private void validateMember(Member member) throws InvalidMemberException {
+        if (member.getFine() < 0)
+            throw new InvalidMemberException("Fine can not be negative!");
+        if (member.getName().trim().isEmpty())
+            throw new InvalidMemberException("Name can not be empty!");
+        if (!Validator.isValidEmail(member.getEmail()))
+            throw new InvalidMemberException("Email is not valid!");
+    }
+
+    public void registerMember(Member member) throws DuplicateEntryException, InvalidMemberException {
+        validateMember(member);
         if (isPhoneDuplicate(member.getPhone()))
             throw new DuplicateEntryException("Phone", member.getPhone());
         if (isEmailDuplicate(member.getEmail()))
@@ -25,7 +37,8 @@ public class MemberService {
     }
 
     public void updateMember(Member oldMember, Member newMember)
-            throws EntityNotFoundException, DuplicateEntryException {
+            throws EntityNotFoundException, DuplicateEntryException, InvalidMemberException {
+        validateMember(newMember);
         if (oldMember == null)
             throw new EntityNotFoundException("Member", "unknown");
         if (isPhoneDuplicateExcluding(newMember.getPhone(), oldMember.getId()))
