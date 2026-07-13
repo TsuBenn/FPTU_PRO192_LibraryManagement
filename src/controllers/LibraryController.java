@@ -15,7 +15,6 @@ public class LibraryController {
 
     public LibraryController() {
         AppContext ctx = new AppContext();
-        DataSeeder.seed(ctx);
 
         this.input = ctx.input;
         this.bookHandler = new BookHandler(ctx);
@@ -35,16 +34,36 @@ public class LibraryController {
         while (running) {
             UIRender.clearScreen();
             UIRender.renderMenu("Library System", modules);
-            switch (input.getChoice("Select: ", 7)) {
-                case 1: bookHandler.handle(); break;
-                case 2: memberHandler.handle(); break;
-                case 3: circulationHandler.handleBorrow(); break;
-                case 4: circulationHandler.handleReturn(); break;
-                case 5: circulationHandler.handleLost(); break;
-                case 6: reportHandler.handle(); break;
-                case 7: circulationHandler.handlePayment(); break;
-                case 0: running = false; break;
-            }
+            try {
+                switch (input.getChoice("Select: ", 7)) {
+                    case 1:
+                        bookHandler.handle();
+                        break;
+                    case 2:
+                        memberHandler.handle();
+                        break;
+                    case 3:
+                        circulationHandler.handleBorrow();
+                        break;
+                    case 4:
+                        circulationHandler.handleReturn();
+                        break;
+                    case 5:
+                        circulationHandler.handleLost();
+                        break;
+                    case 6:
+                        reportHandler.handle();
+                        break;
+                    case 7:
+                        circulationHandler.handlePayment();
+                        break;
+                    case 0:
+                        running = false;
+                        break;
+                }
+            } catch (RuntimeException e) {
+                UIRender.renderError(e.getMessage());
         }
     }
+}
 }

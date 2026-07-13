@@ -30,7 +30,7 @@ public class InputController {
     }
 
     public int getInt(String prompt) {
-        while (true) {
+        while (true) {  
             System.out.print(prompt);
             String input = scanner.nextLine().trim();
             if (input.equalsIgnoreCase(ABORT_SIGNAL))
@@ -104,7 +104,7 @@ public class InputController {
         String title = getString("Enter Book Title: ");
         String author = getString("Enter Author: ");
         String genre = getString("Enter Genre: ");
-        double price = getDouble("Enter book price: ");
+        double price = getDouble("Enter book price(k). Eg: 1k -> 1000 vnd: ") * 1000;
         int year = getValidPublicationYear();
         int qty = getValidQuantity();
 
@@ -154,7 +154,7 @@ public class InputController {
         String title = getString("Update Title [" + currentBook.getTitle() + "]: ");
         String author = getString("Update Author [" + currentBook.getAuthor() + "]: ");
         String genre = getString("Update Genre [" + currentBook.getGenre() + "]: ");
-        String priceRaw = getString("Update Price [" + currentBook.getPrice() + "]: ");
+        String priceRaw = getString("Update Price [" + currentBook.getPrice() + "]. Eg: 1k -> 1000: ");
         String yearRaw = getString("Update Publication Year [" + currentBook.getPublicationYear() + "]: ");
         String qtyRaw = getString("Update Max Stock Quantity [" + currentBook.getTotalQuantity() + "]: ");
 
@@ -167,7 +167,7 @@ public class InputController {
             if (!Validator.isValidDouble(priceRaw)) {
                 throw new InvalidBookException("Invalid price input format!");
             }
-            double parsedPrice = Double.parseDouble(priceRaw);
+            double parsedPrice = Double.parseDouble(priceRaw) * 1000;
             if (parsedPrice < 0) {
                 throw new InvalidBookException("Price cannot be negative!");
             }
@@ -199,8 +199,17 @@ public class InputController {
             updatedTotalQty = parsedQty;
         }
 
-        Book newBook = new Book(currentBook.getId(), updatedTitle, updatedAuthor, updatedGenre,
-                updatedYear, updatedTotalQty, currentBook.getBookType());
+        Book newBook = new Book(
+                currentBook.getId(),
+                updatedTitle,
+                updatedAuthor,
+                updatedGenre,
+                updatedPrice,
+                updatedYear,
+                updatedTotalQty,
+                currentBook.getAvailableQuantity(),
+                currentBook.getBookType()
+                );
 
         newBook.setAvailableQuantity(currentBook.getAvailableQuantity()
                 + (updatedTotalQty - currentBook.getTotalQuantity()));

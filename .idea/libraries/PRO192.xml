@@ -1,9 +1,0 @@
-<component name="libraryTable">
-  <library name="PRO192">
-    <CLASSES>
-      <root url="jar://$PROJECT_DIR$/dist/PRO192.jar!/" />
-    </CLASSES>
-    <JAVADOC />
-    <SOURCES />
-  </library>
-</component>

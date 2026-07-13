@@ -1,5 +1,6 @@
 package models;
 
+import repositories.BorrowTransactionRepository;
 import utilities.IDManager;
 import java.time.LocalDate;
 
@@ -15,17 +16,32 @@ public class BorrowTransaction {
     private LocalDate returnDate;
     private double finePaid;
 
-    public BorrowTransaction(String memberId, String memberName,
-                             String bookId, String bookTitle,
-                             LocalDate borrowDate) {
-        this.transactionId = IDManager.transactionIDGenerator.newID();
+    public BorrowTransaction(String memberId, String memberName, String bookId, String bookTitle, LocalDate borrowDate) {
+        this(
+                IDManager.transactionIDGenerator.newID(),
+                memberId,
+                memberName,
+                bookId,
+                bookTitle,
+                TransactionStatus.BORROWING,
+                borrowDate,
+                borrowDate.plusDays(14),
+                null,
+                0.0
+        );
+    }
+
+    public BorrowTransaction(String transactionId, String memberId, String memberName, String bookId, String bookTitle, TransactionStatus transactionStatus, LocalDate borrowDate, LocalDate dueDate, LocalDate returnDate, double finePaid) {
+        this.transactionId = transactionId;
         this.memberId = memberId;
         this.memberName = memberName;
         this.bookId = bookId;
         this.bookTitle = bookTitle;
+        this.transactionStatus = transactionStatus;
         this.borrowDate = borrowDate;
-        this.dueDate = borrowDate.plusDays(14);
-        this.returnDate = null;
+        this.dueDate = dueDate;
+        this.returnDate = returnDate;
+        this.finePaid = finePaid;
     }
 
     public String getTransactionId() { return transactionId; }

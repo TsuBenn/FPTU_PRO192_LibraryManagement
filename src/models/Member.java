@@ -17,18 +17,19 @@ public class Member {
     private int borrowedCount = 0;
 
     public Member(String name, String phone, String email, MemberPolicy policy) {
-        this.id = IDManager.memberIDGenerator.newID();
-        this.name = name;
-        this.phone = phone;
-        this.email = email;
-        this.policy = policy;
+        this(IDManager.memberIDGenerator.newID(), name, phone, email, 0.0, policy, 0);
     }
 
     public Member(String id, String name, String phone, String email, MemberPolicy policy, int borrowedCount) {
+        this(id, name, phone, email, 0.0, policy, borrowedCount);
+    }
+
+    public Member(String id, String name, String phone, String email, double fine, MemberPolicy policy, int borrowedCount) {
         this.id = id;
         this.name = name;
         this.phone = phone;
         this.email = email;
+        this.fine = fine;
         this.policy = policy;
         this.borrowedCount = borrowedCount;
     }
@@ -61,7 +62,7 @@ public class Member {
         return fine;
     }
     public void setFine(double fine) {
-        if (fine > 0)
+        if (fine >= 0)
             this.fine = fine;
     }
 

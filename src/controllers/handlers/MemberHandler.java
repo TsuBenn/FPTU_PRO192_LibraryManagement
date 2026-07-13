@@ -1,10 +1,7 @@
 package controllers.handlers;
 
 import config.AppContext;
-import exceptions.AbortInputException;
-import exceptions.DuplicateEntryException;
-import exceptions.InvalidOperationException;
-import exceptions.LibraryException;
+import exceptions.*;
 import models.Member;
 import repositories.MemberRepository;
 import services.BorrowTransactionService;
@@ -43,7 +40,7 @@ public class MemberHandler {
         }
     }
 
-    private void handleAdd() {
+    private void handleAdd()  {
         UIRender.clearScreen();
         try {
             Member member = input.inputNewMemberData();
@@ -62,7 +59,7 @@ public class MemberHandler {
             }
         } catch (AbortInputException e) {
             UIRender.renderError("Cancelled. Returning to menu.");
-        } catch (DuplicateEntryException e) {
+        } catch (DuplicateEntryException | InvalidMemberException e ) {
             UIRender.renderError(e.getMessage());
         }
         UIRender.pauseEnter();
@@ -75,6 +72,9 @@ public class MemberHandler {
                     input.getString("Enter member search criteria (Name/ID): ")
             ));
             if (target == null) return;
+            ConfirmResult confirm = input.getConfirmation();
+            if (confirm != ConfirmResult.CONFIRM)
+                return;
             int activeLoans = transactionService.countActiveLoans(target.getId());
             memberService.deleteMember(target, activeLoans);
             borrowTransactionService.markTransactionsAsMemberRemoved(target.getId());

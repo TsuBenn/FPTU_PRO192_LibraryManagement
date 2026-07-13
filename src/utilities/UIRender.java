@@ -1,6 +1,7 @@
 package utilities;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import models.Book;
 import models.Member;
@@ -119,4 +120,5 @@ public class UIRender {
         System.out.print("\033[H\033[2J");
         System.out.flush();
     }
+
 }

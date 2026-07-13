@@ -3,9 +3,11 @@ package controllers.handlers;
 import config.AppContext;
 import exceptions.AbortInputException;
 import exceptions.BorrowPolicyException;
+import exceptions.LibraryException;
 import models.Book;
 import models.BorrowTransaction;
 import models.Member;
+import models.TransactionStatus;
 import services.BookService;
 import services.BorrowTransactionService;
 import services.MemberService;
@@ -54,6 +56,9 @@ public class CirculationHandler {
                     book.getId(), book.getTitle(),
                     LocalDate.now());
 
+            ConfirmResult confirm = input.getConfirmation();
+            if (confirm != ConfirmResult.CONFIRM)
+                return;
             transactionService.executeCheckout(member, book, tx);
             UIRender.renderSuccess("Book borrowed successfully.");
         } catch (AbortInputException e) {
@@ -83,6 +88,9 @@ public class CirculationHandler {
             UIRender.renderTable(activeLoans, "Active Loans", TX_RENDERER);
             BorrowTransaction targetTx = input.selectTransactionFromList(activeLoans);
             if (targetTx == null) return;
+            ConfirmResult confirm = input.getConfirmation();
+            if (confirm != ConfirmResult.CONFIRM)
+                return;
 
             Book book = bookService.getBookById(targetTx.getBookId());
             double fines = transactionService.processReturn(targetTx, member, book, LocalDate.now());
@@ -119,6 +127,9 @@ public class CirculationHandler {
             UIRender.renderTable(activeLoans, "Active Loans", TX_RENDERER);
             BorrowTransaction targetTx = input.selectTransactionFromList(activeLoans);
             if (targetTx == null) return;
+            ConfirmResult confirm = input.getConfirmation();
+            if (confirm != ConfirmResult.CONFIRM)
+                return;
 
             Book book = bookService.getBookById(targetTx.getBookId());
 
@@ -143,30 +154,32 @@ public class CirculationHandler {
 
         List<BorrowTransaction> requiredPaidTransactions =
                 transactionService.getRequiredPaidTransactionsByMember(member.getId());
+
         if (requiredPaidTransactions == null) {
             UIRender.renderSuccess(member.getName() + " has no fine to resolve!");
             return;
         }
 
         UIRender.renderTable(requiredPaidTransactions, "Required pay", TX_RENDERER);
+        if (requiredPaidTransactions.isEmpty())
+            return;
         try {
-            int numberOfResolvePayment = input.getInt("Enter number you want to resolve: ");
-            while (numberOfResolvePayment > 0) {
-                UIRender.renderError("Cancelled. Returning to menu.");
-                int index = input.getInt("Enter index: ");
-                if (index > 0 && index < requiredPaidTransactions.size()) {
-                    UIRender.renderSuccess("Resolve this transaction!");
-                    ConfirmResult c = input.getConfirmation();
-                    if (c == ConfirmResult.CONFIRM)
-                        transactionService.processPayment(
-                                requiredPaidTransactions.get(index),
-                                member
-                        );
+            while (true) {
+                UIRender.renderTable(requiredPaidTransactions, "Required pay", TX_RENDERER);
+                int resolveIndex = input.getInt("Enter the resolve index. Press :q to return: ");
+                if (resolveIndex > requiredPaidTransactions.size())
+                    throw new LibraryException("Invalid index!");
+                BorrowTransaction transaction = requiredPaidTransactions.get(resolveIndex - 1);
+                if (transaction.getTransactionStatus() == TransactionStatus.MISSING_AND_IS_PAID
+                || transaction.getTransactionStatus() == TransactionStatus.IS_PAID) {
+                    UIRender.renderSuccess("This transaction has been resolve!");
+                    continue;
                 }
-                numberOfResolvePayment--;
+
+                transactionService.processPayment(transaction, memberService.getMemberById(transaction.getMemberId()));
             }
-        } catch (AbortInputException e) {
-            UIRender.renderError("Cancelled. Returning to menu.");
+        } catch (AbortInputException | LibraryException e) {
+            UIRender.renderError(e.getMessage());
         }
     }
 }

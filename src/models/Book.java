@@ -14,25 +14,18 @@ public class Book {
     private final BookType bookType;
 
     public Book(String title, String author, String genre, int publicationYear, double prices, int totalQuantity, BookType bookType) {
-        this.id = IDManager.bookIDGenerator.newID();
-        this.title = title;
-        this.author = author;
-        this.genre = genre;
-        this.publicationYear = publicationYear;
-        this.totalQuantity = totalQuantity;
-        this.price = prices;
-        this.availableQuantity = totalQuantity;
-        this.bookType = bookType;
+        this(IDManager.bookIDGenerator.newID(), title, author, genre, prices, publicationYear, totalQuantity, totalQuantity, bookType);
     }
 
-    public Book(String id, String title, String author, String genre, int publicationYear, int totalQuantity, BookType bookType) {
+    public Book(String id, String title, String author, String genre, double price, int publicationYear, int totalQuantity, int availableQuantity, BookType bookType) {
         this.id = id;
         this.title = title;
         this.author = author;
         this.genre = genre;
+        this.price = price;
         this.publicationYear = publicationYear;
         this.totalQuantity = totalQuantity;
-        this.availableQuantity = totalQuantity;
+        this.availableQuantity = availableQuantity;
         this.bookType = bookType;
     }
 

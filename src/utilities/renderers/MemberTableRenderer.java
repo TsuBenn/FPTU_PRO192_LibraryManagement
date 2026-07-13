@@ -6,7 +6,7 @@ import utilities.TableRenderer;
 public class MemberTableRenderer implements TableRenderer<Member> {
     @Override
     public String[] getHeaders() {
-        return new String[]{"ID", "Name", "Phone", "Email", "Fine", "Limit", "Tier"};
+        return new String[]{"ID", "Name", "Phone", "Email", "Fine", "Limit", "Remain borrow", "Tier"};
     }
 
     @Override
@@ -15,6 +15,7 @@ public class MemberTableRenderer implements TableRenderer<Member> {
                 m.getId(), m.getName(), m.getPhone(), m.getEmail(),
                 String.valueOf(m.getFine()),
                 String.valueOf(m.getBorrowLimit()),
+                String.valueOf(m.getRemainingBorrowSlots()),
                 m.getTierName()
         };
     }

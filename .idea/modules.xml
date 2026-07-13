@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/FPTU_PRO192_LibraryManagement.iml" filepath="$PROJECT_DIR$/FPTU_PRO192_LibraryManagement.iml" />
+      <module fileurl="file://$PROJECT_DIR$/LibraryManagement.iml" filepath="$PROJECT_DIR$/LibraryManagement.iml" />
     </modules>
   </component>
 </project>

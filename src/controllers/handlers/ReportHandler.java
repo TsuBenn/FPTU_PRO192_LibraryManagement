@@ -1,18 +1,13 @@
 package controllers.handlers;
 
-import com.sun.javaws.security.AppPolicy;
 import config.AppContext;
 import exceptions.AbortInputException;
-import models.Book;
 import models.BorrowTransaction;
 import models.Member;
-import repositories.MemberRepository;
 import services.MemberService;
 import services.ReportService;
 import utilities.*;
 
-import java.util.List;
-import java.util.stream.Collectors;
 
 public class ReportHandler {
     private static final TableRenderer<BorrowTransaction> TX_RENDERER =

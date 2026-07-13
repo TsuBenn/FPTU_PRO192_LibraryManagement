@@ -3,13 +3,12 @@ package controllers.handlers;
 import config.AppContext;
 import exceptions.*;
 import models.Book;
-import repositories.BookRepository;
 import services.BookService;
 import services.BorrowTransactionService;
-import utilities.*;
-
-import java.util.List;
-import java.util.stream.Collectors;
+import utilities.ConfirmResult;
+import utilities.InputController;
+import utilities.TableRenderer;
+import utilities.UIRender;
 
 public class BookHandler {
     private static final TableRenderer<Book> RENDERER = new utilities.renderers.BookTableRenderer();
@@ -75,8 +74,11 @@ public class BookHandler {
                     )
             );
             if (target == null) return;
+            ConfirmResult confirm = input.getConfirmation();
+            if (confirm != ConfirmResult.CONFIRM)
+                return;
             bookService.deleteBook(target);
-            borrowTransactionService.markTransactionsAsBookRemoved(target.getId());
+            borrowTransactionService.markTransactionAsBookRemove(target.getId());
             UIRender.renderSuccess("Book removed.");
         } catch (AbortInputException e) {
             UIRender.renderError("Cancelled. Returning to menu.");
